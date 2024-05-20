@@ -1,0 +1,9 @@
+[tool.black]
+line-length = 90
+target-version = ['py39']
+
+[tool.flake8]
+max-line-length = 90
+
+[tool.isort]
+line_length = 90
