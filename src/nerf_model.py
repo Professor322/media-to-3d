@@ -44,6 +44,10 @@ class NerfModel(nn.Module):
         )
 
     def forward(self, ray, directions):
+        """
+        ray - (batch_size, n_rays, n_samples, dim_rays)
+        directions - (batch_size, n_rays, n_samples, dim_directions)
+        """
         out = self.model_first_part(ray)
         # prepare input for the second part ray + out
         out = torch.cat([ray, out], axis=-1)
@@ -56,4 +60,5 @@ class NerfModel(nn.Module):
 
         color = self.model_color(out)
 
+        # output dimensions (batch_size, n_rays, n_samples, 4)
         return torch.cat([sigma, color], axis=-1)
