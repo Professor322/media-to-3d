@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 
+import utils
+
 
 class VolumeRenderer(nn.Module):
     """
@@ -8,12 +10,14 @@ class VolumeRenderer(nn.Module):
     from the particular angle
     """
 
-    def __init__():
-        pass
+    def __init__(self):
+        super().__init__()
 
-    def forward(self, radiance_field, rays):
+    def forward(self, radiance_field, ray_directions, ray_depth_samples):
         """
         radiance_field = (batch_size, n_rays, n_samples, 4) rgb, sigma
+        ray_directions = (batch_size, n_rays, n_samples, 3) - direction of the ray
+        ray_depth_samples = (batch_size, n_rays, n_samples) - depth of the ray directions
 
         Forward path of a renderer takes output of NeRF MLP and a ray along which
         we need to create a view.
@@ -24,13 +28,21 @@ class VolumeRenderer(nn.Module):
         T_{i}(\alpha) = exp(-sum(\alpha))  sum from t_near to i
         """
 
-        gammas = ...
+        gammas = torch.cat(
+            (
+                ray_depth_samples[..., 1:] - ray_depth_samples[..., :-1],
+                # last sample has no further samples, so add really big value here
+                torch.tensor([10e9]).expand(ray_depth_samples[..., :1].shape),
+            ),
+            dim=-1,
+        )  # (N_rays, N_samples_)
         rgb = radiance_field[..., :3]
         sigmas = radiance_field[..., 3]
-        alpha = 1.0 - torch.exp(-sigmas * gammas)
-        # cumprod of -\sigma * \gamma in exponent which is already hidden in alpha,
-        # we just need to subtract 1.0
-        T = torch.exp(alpha) - 1.0
-
-        out_rgb = torch.sum(T * alpha * rgb)
+        sigmasXgammas = sigmas * gammas
+        alpha = 1.0 - torch.exp(-sigmasXgammas)
+        # something wrong with this
+        T = torch.exp(-utils.cumprod_exclusive(sigmasXgammas))
+        weigths = T * alpha
+        # sum along the rays
+        out_rgb = torch.sum(weigths[..., None] * rgb, dim=-2)
         return out_rgb
