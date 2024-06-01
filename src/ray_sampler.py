@@ -3,7 +3,10 @@ import torch
 
 class RaySampler(torch.nn.Module):
     """
-    Implements stratified inverse depth sampling
+    Implements stratified inverse depth sampling.
+    https://arxiv.org/pdf/2003.08934
+    page 6 (randomized offset in the bin)
+    page 17 (inverse depth)
     """
 
     def __init__(self, num_samples):
