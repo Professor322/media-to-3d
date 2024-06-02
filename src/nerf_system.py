@@ -64,9 +64,10 @@ class NerfSystem(L.LightningModule):
         # self.val_dataset = dataset.NerfDatasetRealImages(split="val", **kwargs)
 
     def training_step(self, batch, batch_nb):
-        results = self.forward(
-            batch["ray_origins"], batch["ray_directions"], batch["near"], batch["far"]
-        )
+        # near and far are the same for all elements in the batch
+        near = batch["near"][0].item()
+        far = batch["near"][0].item()
+        results = self.forward(batch["ray_origins"], batch["ray_directions"], near, far)
         loss = self.loss(results, batch["rgb"])
         self.log("train/loss", loss)
         return loss

@@ -39,6 +39,7 @@ class NerfDatasetRealImages(Dataset):
         self.transforms = transforms.ToTensor()
         self.near = 2.0
         self.far = 6.0
+        self.image_names = []
         # ray directions in camera coordinates
         self.rays_directions_cam = utils.get_pix2cam(
             self.image_resolution[0],
@@ -66,6 +67,7 @@ class NerfDatasetRealImages(Dataset):
             )
             self.rays_origins.append(ray_origins.float())
             self.rays_directions.append(ray_directions.float())
+            self.image_names.append(img.name)
 
     def __getitem__(self, index):
         return {
@@ -74,6 +76,7 @@ class NerfDatasetRealImages(Dataset):
             "far": self.far,
             "ray_origins": self.rays_origins[index],
             "ray_directions": self.rays_directions[index],
+            "image_name": self.image_names[index],
         }
 
     def __len__(self):

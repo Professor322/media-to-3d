@@ -31,12 +31,11 @@ class RaySampler(torch.nn.Module):
             point_intervals: (ray_count, self.num_samples) : depths of the sampled points along the ray
         """
         self.point_intervals = self.point_intervals.to(device)
-        if not hasattr(near, "shape") and isinstance(near, float):
-            near, far = near * torch.ones_like(
-                torch.empty(ray_count, 1)
-            ), far * torch.ones_like(torch.empty(ray_count, 1))
-        elif len(near.shape) > 0 and near.shape[0] == ray_count:
-            near, far = near[:, None], far[:, None]
+
+        near, far = near * torch.ones_like(
+            torch.empty(ray_count, 1, device=device)
+        ), far * torch.ones_like(torch.empty(ray_count, 1, device=device))
+
         # The closer to the camera the more samples
         point_intervals = 1.0 / (
             1.0 / near * (1.0 - self.point_intervals) + 1.0 / far * self.point_intervals
