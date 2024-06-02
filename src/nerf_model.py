@@ -42,6 +42,7 @@ class NerfModel(nn.Module):
         self.model_color = nn.Sequential(
             nn.ReLU(), nn.Linear(net_width // 2, 3), nn.Sigmoid()
         )
+        self.float()
 
     def forward(self, ray, directions):
         """

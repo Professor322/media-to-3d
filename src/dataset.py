@@ -64,8 +64,8 @@ class NerfDatasetRealImages(Dataset):
             ray_origins, ray_directions = utils.get_rays(
                 self.rays_directions_cam, world2cam
             )
-            self.rays_origins.append(ray_origins)
-            self.rays_directions.append(ray_directions)
+            self.rays_origins.append(ray_origins.float())
+            self.rays_directions.append(ray_directions.float())
 
     def __getitem__(self, index):
         return {

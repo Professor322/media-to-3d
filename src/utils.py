@@ -45,7 +45,6 @@ def get_rays(ray_directions_cam, c2w):
     """
     # we only need to rotate to align with world coordinates, no need to tranlate.
     rays_d = ray_directions_cam @ c2w[:3, :3]  # (H, W, 3)
-
     rays_d = rays_d / torch.norm(rays_d, dim=-1, keepdim=True)
     # The origin of all rays is the camera origin in world coordinate
     rays_o = c2w[:3, -1].expand(rays_d.shape)  # (H, W, 3)
@@ -90,3 +89,7 @@ def cumprod_exclusive(tensor: torch.Tensor) -> torch.Tensor:
     cumprod[..., 0] = 1.0
 
     return cumprod
+
+
+def plot_rays(ray_origins, ray_directions):
+    pass

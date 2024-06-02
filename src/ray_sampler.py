@@ -21,7 +21,7 @@ class RaySampler(torch.nn.Module):
             requires_grad=False,
         )
 
-    def forward(self, ray_count, near, far):
+    def forward(self, ray_count, near, far, device):
         """
         Inputs:
             ray_count: int, number of rays in input ray chunk
@@ -30,6 +30,7 @@ class RaySampler(torch.nn.Module):
         Outputs:
             point_intervals: (ray_count, self.num_samples) : depths of the sampled points along the ray
         """
+        self.point_intervals = self.point_intervals.to(device)
         if not hasattr(near, "shape") and isinstance(near, float):
             near, far = near * torch.ones_like(
                 torch.empty(ray_count, 1)
@@ -48,8 +49,7 @@ class RaySampler(torch.nn.Module):
 
         # Stratified samples in those intervals.
         t_rand = torch.rand(
-            point_intervals.shape,
-            dtype=point_intervals.dtype,
+            point_intervals.shape, dtype=point_intervals.dtype, device=device
         )
         point_intervals = lower + (upper - lower) * t_rand
 

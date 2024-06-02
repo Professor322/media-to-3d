@@ -13,7 +13,7 @@ class VolumeRenderer(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, radiance_field, ray_directions, ray_depth_samples):
+    def forward(self, radiance_field, ray_directions, ray_depth_samples, device):
         """
         radiance_field = (batch_size, n_rays, n_samples, 4) rgb, sigma
         ray_directions = (batch_size, n_rays, n_samples, 3) - direction of the ray
@@ -32,7 +32,9 @@ class VolumeRenderer(nn.Module):
             (
                 ray_depth_samples[..., 1:] - ray_depth_samples[..., :-1],
                 # last sample has no further samples, so add really big value here
-                torch.tensor([10e9]).expand(ray_depth_samples[..., :1].shape),
+                torch.tensor([10e9], device=device).expand(
+                    ray_depth_samples[..., :1].shape
+                ),
             ),
             dim=-1,
         )  # (N_rays, N_samples_)
