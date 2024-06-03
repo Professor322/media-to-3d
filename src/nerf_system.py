@@ -1,4 +1,5 @@
 import lightning as L
+import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import DataLoader
 
@@ -17,9 +18,10 @@ class NerfSystem(L.LightningModule):
         n_ray_samples,
         image_width,
         image_height,
-        train_dataloader_path,
+        dataset_type,
+        train_dataset_path,
         batch_size,
-        val_dataloder_path="",
+        val_dataset_path="",
     ):
         super().__init__()
         self.model = nerf_model.NerfModel(input_size_ray, input_size_direction)
@@ -27,8 +29,13 @@ class NerfSystem(L.LightningModule):
         self.volume_renderer = volume_renderer.VolumeRenderer()
         self.loss = torch.nn.MSELoss(reduction="mean")
         self.image_resolution = [image_width, image_height]
-        self.train_dataloader_path = train_dataloader_path + "/sparse/0"
-        self.val_dataloader_path = val_dataloder_path
+        self.dataset_type = dataset_type
+        self.train_dataset_path = train_dataset_path
+        self.val_dataset_path = val_dataset_path
+        if self.dataset_type == "real":
+            self.train_dataset_path += "/sparse/0"
+            self.val_dataset_path += "sparse/0"
+
         self.batch_size = batch_size
 
     def forward(self, ray_origins, ray_directions, near, far):
@@ -51,24 +58,48 @@ class NerfSystem(L.LightningModule):
         rgb_out = self.volume_renderer(
             radiance_field, ray_directions, ray_depth_values, self.device
         )
-        return rgb_out.reshape(
+        # (batch_size, num_rays, 3) -> (batch_size, 3, H, W)
+        return rgb_out.permute(0, 2, 1).reshape(
             batch_size, 3, self.image_resolution[0], self.image_resolution[1]
         )
 
     def setup(self, stage):
-        self.train_dataset = dataset.NerfDatasetRealImages(
-            data_path=self.train_dataloader_path,
-            image_width=self.image_resolution[0],
-            image_height=self.image_resolution[1],
-        )
-        # self.val_dataset = dataset.NerfDatasetRealImages(split="val", **kwargs)
+        if self.dataset_type == "real":
+            self.train_dataset = dataset.NerfDatasetRealImages(
+                data_path=self.train_dataset_path,
+                image_width=self.image_resolution[0],
+                image_height=self.image_resolution[1],
+            )
+            # self.val_dataset = dataset.NerfDatasetRealImages(split="val", **kwargs)
+        elif self.dataset_type == "blender":
+            self.train_dataset = dataset.BlenderDataset(
+                self.train_dataset_path, split="train", img_wh=self.image_resolution
+            )
+            self.val_dataset = dataset.BlenderDataset(
+                self.train_dataset_path, split="val", img_wh=self.image_resolution
+            )
 
     def training_step(self, batch, batch_nb):
         # near and far are the same for all elements in the batch
-        near = batch["near"][0].item()
-        far = batch["near"][0].item()
-        results = self.forward(batch["ray_origins"], batch["ray_directions"], near, far)
-        loss = self.loss(results, batch["rgb"])
+        if self.dataset_type == "real":
+            near = batch["near"][0].item()
+            far = batch["near"][0].item()
+            ray_origins, ray_directions = batch["ray_origins"], batch["ray_directions"]
+            rgbs = batch["rgb"]
+        elif self.dataset_type == "blender":
+            ray_origins, ray_directions = (
+                batch["rays"][None, :, 0:3],
+                batch["rays"][None, :, 3:6],
+            )
+            near, far = batch["rays"][:, 6:7][0].item(), batch["rays"][:, 7:8][0].item()
+            rgbs = (
+                batch["rgbs"]
+                .permute(1, 0)
+                .reshape(1, 3, self.image_resolution[0], self.image_resolution[1])
+            )
+
+        results = self.forward(ray_origins, ray_directions, near, far)
+        loss = self.loss(results, rgbs)
         self.log("train/loss", loss)
         return loss
 
@@ -86,3 +117,51 @@ class NerfSystem(L.LightningModule):
             batch_size=self.batch_size,
             pin_memory=True,
         )
+
+    def val_dataloader(self) -> torch.Any:
+        return DataLoader(
+            self.val_dataset,
+            shuffle=False,
+            num_workers=4,
+            batch_size=1,
+            pin_memory=True,
+        )
+
+    def validation_step(self, batch, batch_nb):
+        if self.dataset_type == "real":
+            near = batch["near"][0].item()
+            far = batch["near"][0].item()
+            ray_origins, ray_directions = batch["ray_origins"], batch["ray_directions"]
+            rgbs = batch["rgb"]
+            loss = self.loss(results, batch["rgb"])
+        elif self.dataset_type == "blender":
+            ray_origins, ray_directions = batch["rays"][..., 0:3], batch["rays"][..., 3:6]
+            near, far = (
+                batch["rays"][..., 6:7][0, 0].item(),
+                batch["rays"][..., 7:8][0, 0].item(),
+            )
+            rgbs = (
+                batch["rgbs"]
+                .permute(0, 2, 1)
+                .reshape(1, 3, self.image_resolution[0], self.image_resolution[1])
+            )
+        results = self.forward(ray_origins, ray_directions, near, far)
+        log = {"val_loss": self.loss(results, rgbs)}
+
+        if batch_nb == 0:
+            W, H = self.image_resolution
+            print(results[0].shape)
+            plt.subplot(121)
+            plt.imshow(results[0].permute(1, 2, 0).cpu().numpy())
+            plt.axis("off")
+            plt.subplot(122)
+            plt.imshow(rgbs[0].permute(1, 2, 0).cpu().numpy())
+            plt.axis("off")
+            plt.show()
+
+        loss = self.loss(results, rgbs)
+        log["val_psnr"] = loss
+
+        # self.validation_step_outputs.append(log)
+
+        return log

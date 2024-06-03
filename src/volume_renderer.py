@@ -38,6 +38,7 @@ class VolumeRenderer(nn.Module):
             ),
             dim=-1,
         )  # (N_rays, N_samples_)
+        gammas = gammas * ray_directions[..., None, :].norm(p=2, dim=-1)
         rgb = radiance_field[..., :3]
         sigmas = radiance_field[..., 3]
         sigmasXgammas = sigmas * gammas
