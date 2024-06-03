@@ -133,7 +133,6 @@ class NerfSystem(L.LightningModule):
             far = batch["near"][0].item()
             ray_origins, ray_directions = batch["ray_origins"], batch["ray_directions"]
             rgbs = batch["rgb"]
-            loss = self.loss(results, batch["rgb"])
         elif self.dataset_type == "blender":
             ray_origins, ray_directions = batch["rays"][..., 0:3], batch["rays"][..., 3:6]
             near, far = (
@@ -161,7 +160,4 @@ class NerfSystem(L.LightningModule):
 
         loss = self.loss(results, rgbs)
         log["val_psnr"] = loss
-
-        # self.validation_step_outputs.append(log)
-
         return log
