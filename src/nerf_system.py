@@ -148,8 +148,6 @@ class NerfSystem(L.LightningModule):
         log = {"val_loss": self.loss(results, rgbs)}
 
         if batch_nb == 0:
-            W, H = self.image_resolution
-            print(results[0].shape)
             plt.subplot(121)
             plt.imshow(results[0].permute(1, 2, 0).cpu().numpy())
             plt.axis("off")
