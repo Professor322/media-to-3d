@@ -29,9 +29,10 @@ class NerfDatasetRealImages(Dataset):
         self.image_resolution = [image_width, image_height]
         # assuming one camera is used for all pictures
         self.camera = self.scene_manager.cameras[1]
+        print(self.camera.cx, self.camera.cy)
 
         # matricies to convert from world coordinates to camera coordinates
-        self.world2cams = []
+        self.c2w = []
         # image rgbs
         self.rgbs = []
         # rays casted from camera to each pixel
@@ -41,22 +42,28 @@ class NerfDatasetRealImages(Dataset):
         self.near = 2.0
         self.far = 6.0
         self.image_names = []
-        # ray directions in camera coordinates
-        self.rays_directions_cam = utils.get_pix2cam(
-            self.image_resolution[0],
-            self.image_resolution[1],
+        # matrix to translate from pixel to camera coordinates
+        # self.pix2cam = utils.get_pix2cam(
+        #    self.camera.fx,
+        #    self.camera.fy,
+        #    self.camera.cx,
+        #    self.camera.cy,
+        # )
+        self.pix2cam = utils.get_pix2cam(
             self.camera.fx,
             self.camera.fy,
+            image_width * 0.5,
+            image_height * 0.5,
         )
-        # create world2cam matricies for images
         bottom = torch.tensor([0, 0, 0, 1]).reshape(1, 4)
         for _, img in self.scene_manager.images.items():
-            translation = torch.from_numpy(img.C()).reshape(3, 1)
+            translation = torch.from_numpy(img.tvec).reshape(3, 1)
             rotation = torch.from_numpy(img.R())
             world2cam = torch.concatenate(
                 [torch.concatenate([rotation, translation], dim=1), bottom], dim=0
             ).float()
-            self.world2cams.append(world2cam)
+            cam2world = torch.linalg.inv(world2cam)
+            self.c2w.append(cam2world)
             # get image rgbs
             rgb = Image.open(self.scene_manager.image_path + img.name)
             if [rgb.width, rgb.height] != self.image_resolution:
@@ -64,7 +71,10 @@ class NerfDatasetRealImages(Dataset):
             rgb = self.transforms(rgb)
             self.rgbs.append(rgb)
             ray_origins, ray_directions = utils.get_rays(
-                self.rays_directions_cam, world2cam
+                self.image_resolution[0],
+                self.image_resolution[1],
+                self.pix2cam,
+                cam2world,
             )
             self.rays_origins.append(ray_origins.float())
             self.rays_directions.append(ray_directions.float())
@@ -99,6 +109,7 @@ def get_ray_direction(H, W, focal):
     )
     i = i.t()
     j = j.t()
+    # blender x -y, -z (only works with these signs)
     return torch.stack(
         [(i - W / 2) / focal, -(j - H / 2) / focal, -torch.ones_like(i)], -1
     )
@@ -115,6 +126,7 @@ def get_rays_with_dir(directions, c2w):
         rays_d: (H*W, 3), the normalized direction of the rays in world coordinate
     """
     # Rotate ray directions from camera coordinate to the world coordinate
+    # Why Transposed matrix ?
     rays_d = directions @ c2w[:, :3].T  # (H, W, 3)
     rays_d = rays_d / torch.norm(rays_d, dim=-1, keepdim=True)
     # The origin of all rays is the camera origin in world coordinate

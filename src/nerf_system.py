@@ -70,7 +70,12 @@ class NerfSystem(L.LightningModule):
                 image_width=self.image_resolution[0],
                 image_height=self.image_resolution[1],
             )
-            # self.val_dataset = dataset.NerfDatasetRealImages(split="val", **kwargs)
+
+            self.val_dataset = dataset.NerfDatasetRealImages(
+                data_path=self.train_dataset_path,
+                image_width=self.image_resolution[0],
+                image_height=self.image_resolution[1],
+            )
         elif self.dataset_type == "blender":
             self.train_dataset = dataset.BlenderDataset(
                 self.train_dataset_path, split="train", img_wh=self.image_resolution
