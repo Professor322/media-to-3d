@@ -44,6 +44,9 @@ def get_rays(H, W, pix2cam, cam2world):
         # shoot ray through the middle of the pixel
         return torch.stack([x + 0.5, y + 0.5, torch.ones_like(x)], dim=-1)
 
+    # Switch from COLMAP (right, down, fwd) to NeRF (right, up, back) frame.
+    cam2world = cam2world @ torch.diag(torch.tensor([1, -1, -1, 1], dtype=torch.float32))
+
     directions_camera_coords = pixel_to_direction(x, y) @ pix2cam
     # https://github.com/colmap/colmap/issues/1341
     directions_real_world_coords = directions_camera_coords @ cam2world[:3, :3].T
