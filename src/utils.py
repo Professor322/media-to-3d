@@ -48,7 +48,6 @@ def get_rays(H, W, pix2cam, cam2world):
     cam2world = cam2world @ torch.diag(torch.tensor([1, -1, -1, 1], dtype=torch.float32))
 
     directions_camera_coords = pixel_to_direction(x, y) @ pix2cam
-    # https://github.com/colmap/colmap/issues/1341
     directions_real_world_coords = directions_camera_coords @ cam2world[:3, :3].T
     directions_real_world_coords = directions_real_world_coords / torch.norm(
         directions_real_world_coords, dim=-1, keepdim=True
@@ -56,27 +55,6 @@ def get_rays(H, W, pix2cam, cam2world):
 
     origins = cam2world[..., :3, -1].expand(directions_real_world_coords.shape)
     return origins.reshape(-1, 3), directions_camera_coords.reshape(-1, 3)
-
-
-# def get_rays(pix2cma, c2w):
-#    """
-#    Get ray origin and normalized directions in world coordinate for all pixels in one image.
-#    Inputs:
-#        camera_coordinates: (H, W, 3) precomputed ray directions in camera coordinate
-#        c2w: (3, 4) transformation matrix from camera coordinate to world coordinate
-#    Outputs:
-#        rays_o: (H*W, 3), the origin of the rays in world coordinate
-#        rays_d: (H*W, 3), the normalized direction of the rays in world coordinate
-#    """
-#    # we only need to rotate to align with world coordinates, no need to tranlate.
-#    rays_d = ray_directions_cam @ c2w[:3, :3]  # (H, W, 3)
-#    rays_d = rays_d / torch.norm(rays_d, dim=-1, keepdim=True)
-#    # The origin of all rays is the camera origin in world coordinate
-#    rays_o = c2w[:3, -1].expand(rays_d.shape)  # (H, W, 3)
-#    rays_d = rays_d.view(-1, 3)
-#    rays_o = rays_o.view(-1, 3)
-#
-#    return rays_o, rays_d
 
 
 def intervals_to_ray_points(point_intervals, ray_directions, ray_origin):

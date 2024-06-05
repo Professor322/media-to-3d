@@ -23,13 +23,13 @@ class NerfDatasetRealImages(Dataset):
     """
 
     def __init__(self, data_path, image_width, image_height):
-        self.scene_manager = pycolmap.SceneManager(data_path)
+        self.data_path = data_path
+        self.scene_manager = pycolmap.SceneManager(data_path + "/sparse/0")
         self.scene_manager.load_cameras()
         self.scene_manager.load_images()
         self.image_resolution = [image_width, image_height]
         # assuming one camera is used for all pictures
         self.camera = self.scene_manager.cameras[1]
-        print(self.camera.cx, self.camera.cy)
 
         # matricies to convert from world coordinates to camera coordinates
         self.c2w = []
@@ -43,18 +43,17 @@ class NerfDatasetRealImages(Dataset):
         self.far = 6.0
         self.image_names = []
         # matrix to translate from pixel to camera coordinates
-        # self.pix2cam = utils.get_pix2cam(
-        #    self.camera.fx,
-        #    self.camera.fy,
-        #    self.camera.cx,
-        #    self.camera.cy,
-        # )
         self.pix2cam = utils.get_pix2cam(
             self.camera.fx,
             self.camera.fy,
-            image_width * 0.5,
-            image_height * 0.5,
+            # self.camera.cx,
+            # self.camera.cy
+            self.image_resolution[0] * 0.5,
+            self.image_resolution[1] * 0.5,
         )
+        # scaling factors if we need to resize our images
+        # lazily initialized when reading first image
+        self.scale_factor_x = self.scale_factor_y = 1
         bottom = torch.tensor([0, 0, 0, 1]).reshape(1, 4)
         for _, img in self.scene_manager.images.items():
             translation = torch.from_numpy(img.tvec).reshape(3, 1)
@@ -65,9 +64,17 @@ class NerfDatasetRealImages(Dataset):
             cam2world = torch.linalg.inv(world2cam)
             self.c2w.append(cam2world)
             # get image rgbs
-            rgb = Image.open(self.scene_manager.image_path + img.name)
+            rgb = Image.open(self.data_path + "/images/" + img.name)
             if [rgb.width, rgb.height] != self.image_resolution:
+                if [self.scale_factor_x, self.scale_factor_y] == [1, 1]:
+                    # scale pix2cam matrix
+                    self.scale_factor_x = self.image_resolution[0] / rgb.width
+                    self.scale_factor_y = self.image_resolution[1] / rgb.height
+                    self.pix2cam = self.pix2cam @ torch.diag(
+                        torch.tensor([self.scale_factor_x, self.scale_factor_y, 1])
+                    )
                 rgb = rgb.resize(self.image_resolution, Image.Resampling.LANCZOS)
+
             rgb = self.transforms(rgb)
             self.rgbs.append(rgb)
             ray_origins, ray_directions = utils.get_rays(

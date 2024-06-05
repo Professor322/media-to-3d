@@ -32,9 +32,6 @@ class NerfSystem(L.LightningModule):
         self.dataset_type = dataset_type
         self.train_dataset_path = train_dataset_path
         self.val_dataset_path = val_dataset_path
-        if self.dataset_type == "real":
-            self.train_dataset_path += "/sparse/0"
-            self.val_dataset_path += "sparse/0"
 
         self.batch_size = batch_size
 
