@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 
 import dataset
 import nerf_model
+import positional_encoder
 import ray_sampler
 import utils
 import volume_renderer
@@ -13,6 +14,7 @@ import volume_renderer
 class NerfSystem(L.LightningModule):
     def __init__(
         self,
+        use_positional_encoding,
         input_size_ray,
         input_size_direction,
         n_ray_samples,
@@ -24,7 +26,6 @@ class NerfSystem(L.LightningModule):
         val_dataset_path="",
     ):
         super().__init__()
-        self.model = nerf_model.NerfModel(input_size_ray, input_size_direction)
         self.ray_sampler = ray_sampler.RaySampler(num_samples=n_ray_samples)
         self.volume_renderer = volume_renderer.VolumeRenderer()
         self.loss = torch.nn.MSELoss(reduction="mean")
@@ -32,6 +33,28 @@ class NerfSystem(L.LightningModule):
         self.dataset_type = dataset_type
         self.train_dataset_path = train_dataset_path
         self.val_dataset_path = val_dataset_path
+        self.use_positional_encoding = use_positional_encoding
+        self.positional_encoder_ray_direction = self.positional_encoder_ray_points = None
+        self.input_size_ray = input_size_ray
+        self.input_size_direction = input_size_direction
+        if self.use_positional_encoding:
+            # \gamma(x) for direction L = 4 as in paper
+            self.positional_encoder_ray_direction = positional_encoder.PositionalEncoder(
+                input_channels=3, num_freqs=4
+            )
+            # \gamma(x) for sampled ray points L = 10 as in paper
+            self.positional_encoder_ray_points = positional_encoder.PositionalEncoder(
+                input_channels=3, num_freqs=10
+            )
+            # when we are using positional encoding input size will be expanded and original values will be ignored
+            self.input_size_ray = self.positional_encoder_ray_points.output_channels
+            self.input_size_direction = (
+                self.positional_encoder_ray_direction.output_channels
+            )
+
+        print(f"Model inputs {self.input_size_ray, self.input_size_direction}")
+
+        self.model = nerf_model.NerfModel(self.input_size_ray, self.input_size_direction)
 
         self.batch_size = batch_size
 
@@ -45,12 +68,17 @@ class NerfSystem(L.LightningModule):
         ray_points = utils.intervals_to_ray_points(
             ray_depth_values, ray_directions, ray_origins
         )
+        ray_points_encoded = self.positional_encoder_ray_points(ray_points)
 
         # expand ray_directions to match ray point size to feed into MLP
         expanded_ray_directions = (
             ray_directions[..., None, :].expand_as(ray_points).float()
         )
-        radiance_field = self.model(ray_points, expanded_ray_directions)
+        expanded_ray_directions_encoded = self.positional_encoder_ray_direction(
+            expanded_ray_directions
+        )
+
+        radiance_field = self.model(ray_points_encoded, expanded_ray_directions_encoded)
         # render volume to rgb
         rgb_out = self.volume_renderer(
             radiance_field, ray_directions, ray_depth_values, self.device
