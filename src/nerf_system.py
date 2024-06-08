@@ -136,7 +136,8 @@ class NerfSystem(L.LightningModule):
     def forward(self, ray_origins, ray_directions, near, far):
         batch_size = ray_directions.shape[0]
         ray_count = ray_directions.shape[1]
-        do_stratification = self.training == True
+        # do_stratification = self.training == True
+        do_stratification = True
         coarse_rgb, weights = self.coarse_rgb(
             ray_count, near, far, ray_origins, ray_directions, do_stratification
         )
