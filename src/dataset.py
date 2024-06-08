@@ -51,7 +51,7 @@ class NerfDatasetRealImages(Dataset):
         self.scale_factor_x = self.scale_factor_y = 1
         bottom = torch.tensor([0, 0, 0, 1]).reshape(1, 4)
         for _, img in self.scene_manager.images.items():
-            translation = torch.from_numpy(img.tvec).reshape(3, 1)
+            translation = torch.from_numpy(img.t).reshape(3, 1)
             rotation = torch.from_numpy(img.R())
             world2cam = torch.concatenate(
                 [torch.concatenate([rotation, translation], dim=1), bottom], dim=0

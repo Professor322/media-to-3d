@@ -1,7 +1,7 @@
 import torch
 
 
-class RaySampler(torch.nn.Module):
+class RaySamplerLinearInDisparity(torch.nn.Module):
     """
     Implements stratified inverse depth sampling.
     https://arxiv.org/pdf/2003.08934
@@ -10,7 +10,7 @@ class RaySampler(torch.nn.Module):
     """
 
     def __init__(self, num_samples):
-        super(RaySampler, self).__init__()
+        super().__init__()
         self.num_samples = num_samples
 
         # Ray sample count
@@ -21,7 +21,7 @@ class RaySampler(torch.nn.Module):
             requires_grad=False,
         )
 
-    def forward(self, ray_count, near, far, device):
+    def forward(self, ray_count, near, far, stratified, device):
         """
         Inputs:
             ray_count: int, number of rays in input ray chunk
@@ -41,15 +41,33 @@ class RaySampler(torch.nn.Module):
             1.0 / near * (1.0 - self.point_intervals) + 1.0 / far * self.point_intervals
         )
 
-        # Get intervals between samples.
-        mids = 0.5 * (point_intervals[..., 1:] + point_intervals[..., :-1])
-        upper = torch.cat((mids, point_intervals[..., -1:]), dim=-1)
-        lower = torch.cat((point_intervals[..., :1], mids), dim=-1)
+        # stratification should only be used for training
+        if stratified:
+            # Get intervals between samples.
+            mids = 0.5 * (point_intervals[..., 1:] + point_intervals[..., :-1])
+            upper = torch.cat((mids, point_intervals[..., -1:]), dim=-1)
+            lower = torch.cat((point_intervals[..., :1], mids), dim=-1)
 
-        # Stratified samples in those intervals.
-        t_rand = torch.rand(
-            point_intervals.shape, dtype=point_intervals.dtype, device=device
-        )
-        point_intervals = lower + (upper - lower) * t_rand
+            # Stratified samples in those intervals.
+            t_rand = torch.rand(
+                point_intervals.shape, dtype=point_intervals.dtype, device=device
+            )
+            point_intervals = lower + (upper - lower) * t_rand
 
         return point_intervals
+
+
+class RaySamplerPDF(torch.nn.Module):
+    def __init__(self, num_samples):
+        super().__init__()
+        self.num_samples = num_samples
+        self.eps = 1e-5
+
+    def forward(self, weights, stratified):
+        # Add small offset to rays with zero weight to prevent NaNs
+        weights_sum = torch.sum(weights, dim=-1, keepdim=True)
+        padding = torch.relu(self.eps - weights_sum)
+        weights = weights + padding / weights.shape[-1]
+        weights_sum += padding
+
+        pdf = weights / weights_sum

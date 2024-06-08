@@ -13,7 +13,9 @@ class VolumeRenderer(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, radiance_field, ray_directions, ray_depth_samples, device):
+    def forward(
+        self, radiance_field, ray_directions, ray_depth_samples, include_weights, device
+    ):
         """
         radiance_field = (batch_size, n_rays, n_samples, 4) rgb, sigma
         ray_directions = (batch_size, n_rays, n_samples, 3) - direction of the ray
@@ -47,4 +49,7 @@ class VolumeRenderer(nn.Module):
         weights = T * alpha
         # sum along the rays
         out_rgb = torch.sum(weights[..., None] * rgb, dim=-2)
-        return out_rgb
+        if include_weights == True:
+            return [out_rgb, weights]
+        else:
+            return out_rgb

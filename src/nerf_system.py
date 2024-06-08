@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 import dataset
 import nerf_model
 import positional_encoder
-import ray_sampler
+import ray_samplers
 import utils
 import volume_renderer
 
@@ -15,6 +15,7 @@ class NerfSystem(L.LightningModule):
     def __init__(
         self,
         use_positional_encoding,
+        use_hierarchical_sampling,
         input_size_ray,
         input_size_direction,
         n_ray_samples,
@@ -26,7 +27,14 @@ class NerfSystem(L.LightningModule):
         val_dataset_path="",
     ):
         super().__init__()
-        self.ray_sampler = ray_sampler.RaySampler(num_samples=n_ray_samples)
+
+        self.use_hierarchical_sampling = use_hierarchical_sampling
+
+        self.automatic_optimization = self.use_hierarchical_sampling != True
+        self.ray_sampler_in_linear_disparity = ray_samplers.RaySamplerLinearInDisparity(
+            num_samples=n_ray_samples
+        )
+        self.ray_sampler_pdf = ray_samplers.RaySamplerPDF(num_samples=n_ray_samples)
         self.volume_renderer = volume_renderer.VolumeRenderer()
         self.loss = torch.nn.MSELoss(reduction="mean")
         self.image_resolution = [image_width, image_height]
@@ -54,16 +62,25 @@ class NerfSystem(L.LightningModule):
 
         print(f"Model inputs {self.input_size_ray, self.input_size_direction}")
 
-        self.model = nerf_model.NerfModel(self.input_size_ray, self.input_size_direction)
+        self.coarse_model = nerf_model.NerfModel(
+            self.input_size_ray, self.input_size_direction
+        )
+        if self.use_hierarchical_sampling:
+            self.fine_model = nerf_model.NerfModel(
+                self.input_size_ray, self.input_size_direction
+            )
 
         self.batch_size = batch_size
 
-    def forward(self, ray_origins, ray_directions, near, far):
-        batch_size = ray_directions.shape[0]
-        ray_count = ray_directions.shape[1]
-
-        ray_depth_values = self.ray_sampler(
-            ray_count, near=near, far=far, device=self.device
+    def coarse_rgb(
+        self, ray_count, near, far, ray_origins, ray_directions, do_stratification
+    ):
+        ray_depth_values = self.ray_sampler_in_linear_disparity(
+            ray_count,
+            near=near,
+            far=far,
+            stratified=do_stratification,
+            device=self.device,
         ).float()
         ray_points = utils.intervals_to_ray_points(
             ray_depth_values, ray_directions, ray_origins
@@ -78,13 +95,72 @@ class NerfSystem(L.LightningModule):
                 expanded_ray_directions
             )
 
-        radiance_field = self.model(ray_points, expanded_ray_directions)
+        radiance_field = self.coarse_model(ray_points, expanded_ray_directions)
         # render volume to rgb
-        rgb_out = self.volume_renderer(
-            radiance_field, ray_directions, ray_depth_values, self.device
+        return self.volume_renderer(
+            radiance_field, ray_directions, ray_depth_values, True, self.device
         )
+
+    def fine_rgb(
+        self,
+        ray_count,
+        near,
+        far,
+        ray_origins,
+        ray_directions,
+        weights,
+        do_stratification,
+    ):
+        ray_depth_values = self.ray_sampler_pdf(
+            ray_count,
+            near=near,
+            far=far,
+            stratified=do_stratification,
+            weights=weights,
+            device=self.device,
+        ).float()
+        ray_points = utils.intervals_to_ray_points(
+            ray_depth_values, ray_directions, ray_origins
+        )
+        if self.use_positional_encoding:
+            ray_points = self.positional_encoder_ray_points(ray_points)
+            expanded_ray_directions = self.positional_encoder_ray_direction(
+                expanded_ray_directions
+            )
+
+        radiance_field = self.fine_model(ray_points, expanded_ray_directions)
+        return self.volume_renderer(
+            radiance_field, ray_directions, ray_depth_values, False, self.device
+        )
+
+    def forward(self, ray_origins, ray_directions, near, far):
+        batch_size = ray_directions.shape[0]
+        ray_count = ray_directions.shape[1]
+        do_stratification = self.training == True
+        coarse_rgb, weights = self.coarse_rgb(
+            ray_count, near, far, ray_origins, ray_directions, do_stratification
+        )
+
+        if self.use_hierarchical_sampling:
+            fine_rgb = self.fine_rgb(
+                ray_count,
+                near,
+                far,
+                ray_origins,
+                ray_directions,
+                weights,
+                do_stratification,
+            )
+            return [
+                coarse_rgb.permute(0, 2, 1).reshape(
+                    batch_size, 3, self.image_resolution[0], self.image_resolution[1]
+                ),
+                fine_rgb.permute(0, 2, 1).reshape(
+                    batch_size, 3, self.image_resolution[0], self.image_resolution[1]
+                ),
+            ]
         # (batch_size, num_rays, 3) -> (batch_size, 3, H, W)
-        return rgb_out.permute(0, 2, 1).reshape(
+        return coarse_rgb.permute(0, 2, 1).reshape(
             batch_size, 3, self.image_resolution[0], self.image_resolution[1]
         )
 
@@ -134,10 +210,19 @@ class NerfSystem(L.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        self.optimizer = torch.optim.Adam(
-            self.model.parameters(), lr=5e-3, betas=(0.9, 0.999)
+        out_opt = []
+
+        self.optimizer_coarse = torch.optim.Adam(
+            self.coarse_model.parameters(), lr=5e-3, betas=(0.9, 0.999)
         )
-        return [self.optimizer]
+        out_opt.append(self.optimizer_coarse)
+
+        if self.use_hierarchical_sampling:
+            self.optimizer_fine = torch.optim.Adam(
+                self.fine_model.parameters(), lr=5e-3, betas=(0.9, 0.999)
+            )
+            out_opt.append(self.optimizer_fine)
+        return out_opt
 
     def train_dataloader(self):
         return DataLoader(
@@ -158,7 +243,6 @@ class NerfSystem(L.LightningModule):
         )
 
     def validation_step(self, batch, batch_nb):
-        # TODO: no stratification during validation
         if self.dataset_type == "real":
             near = batch["near"][0].item()
             far = batch["near"][0].item()
