@@ -32,7 +32,7 @@ class VolumeRenderer(nn.Module):
             (
                 ray_depth_samples[..., 1:] - ray_depth_samples[..., :-1],
                 # last sample has no further samples, so add really big value here
-                torch.tensor([10e9], device=device).expand(
+                torch.tensor([1e10], device=device).expand(
                     ray_depth_samples[..., :1].shape
                 ),
             ),
@@ -41,11 +41,10 @@ class VolumeRenderer(nn.Module):
         gammas = gammas * ray_directions[..., None, :].norm(p=2, dim=-1)
         rgb = radiance_field[..., :3]
         sigmas = radiance_field[..., 3]
-        sigmasXgammas = sigmas * gammas
-        alpha = 1.0 - torch.exp(-sigmasXgammas)
-        # something wrong with this
-        T = torch.exp(-utils.cumprod_exclusive(sigmasXgammas))
-        weigths = T * alpha
+        alpha = 1.0 - torch.exp(-sigmas * gammas)
+        T = utils.cumprod_exclusive(1.0 - alpha + 1e-10)
+
+        weights = T * alpha
         # sum along the rays
-        out_rgb = torch.sum(weigths[..., None] * rgb, dim=-2)
+        out_rgb = torch.sum(weights[..., None] * rgb, dim=-2)
         return out_rgb

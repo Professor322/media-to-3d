@@ -68,17 +68,17 @@ class NerfSystem(L.LightningModule):
         ray_points = utils.intervals_to_ray_points(
             ray_depth_values, ray_directions, ray_origins
         )
-        ray_points_encoded = self.positional_encoder_ray_points(ray_points)
-
         # expand ray_directions to match ray point size to feed into MLP
         expanded_ray_directions = (
             ray_directions[..., None, :].expand_as(ray_points).float()
         )
-        expanded_ray_directions_encoded = self.positional_encoder_ray_direction(
-            expanded_ray_directions
-        )
+        if self.use_positional_encoding:
+            ray_points = self.positional_encoder_ray_points(ray_points)
+            expanded_ray_directions = self.positional_encoder_ray_direction(
+                expanded_ray_directions
+            )
 
-        radiance_field = self.model(ray_points_encoded, expanded_ray_directions_encoded)
+        radiance_field = self.model(ray_points, expanded_ray_directions)
         # render volume to rgb
         rgb_out = self.volume_renderer(
             radiance_field, ray_directions, ray_depth_values, self.device
@@ -158,6 +158,7 @@ class NerfSystem(L.LightningModule):
         )
 
     def validation_step(self, batch, batch_nb):
+        # TODO: no stratification during validation
         if self.dataset_type == "real":
             near = batch["near"][0].item()
             far = batch["near"][0].item()
