@@ -44,12 +44,7 @@ class NerfDatasetRealImages(Dataset):
         self.image_names = []
         # matrix to translate from pixel to camera coordinates
         self.pix2cam = utils.get_pix2cam(
-            self.camera.fx,
-            self.camera.fy,
-            # self.camera.cx,
-            # self.camera.cy
-            self.image_resolution[0] * 0.5,
-            self.image_resolution[1] * 0.5,
+            self.camera.fx, self.camera.fy, self.camera.cx, self.camera.cy
         )
         # scaling factors if we need to resize our images
         # lazily initialized when reading first image
