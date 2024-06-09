@@ -22,11 +22,30 @@ class NerfDatasetRealImages(Dataset):
     This is a blend of BlenderDataset and LLFF dataset
     """
 
-    def __init__(self, data_path, image_width, image_height):
+    def __init__(self, data_path, image_width, image_height, split="train"):
         self.data_path = data_path
-        self.scene_manager = pycolmap.SceneManager(data_path + "/sparse/0")
-        self.scene_manager.load_cameras()
+        self.split = split
+        # work around if we end up having multiple camera positions estimations
+        max_images = 0
+        camera_position_estimations_idx = max_camera_position_estimation_idx = 0
+        while os.path.exists(data_path + f"/sparse/{camera_position_estimations_idx}"):
+            self.scene_manager = pycolmap.SceneManager(
+                data_path + f"/sparse/{camera_position_estimations_idx}"
+            )
+            self.scene_manager.load_images()
+            if len(self.scene_manager.images.items()) > max_images:
+                max_camera_position_estimation_idx = camera_position_estimations_idx
+                max_images = len(self.scene_manager.images.items())
+            camera_position_estimations_idx += 1
+
+        print(f"Reconstruction {max_camera_position_estimation_idx} chosen")
+        # reload reconstruction with max images in it
+        self.scene_manager = pycolmap.SceneManager(
+            data_path + f"/sparse/{max_camera_position_estimation_idx}"
+        )
         self.scene_manager.load_images()
+
+        self.scene_manager.load_cameras()
         self.image_resolution = [image_width, image_height]
         # assuming one camera is used for all pictures
         self.camera = self.scene_manager.cameras[1]
@@ -93,7 +112,7 @@ class NerfDatasetRealImages(Dataset):
         }
 
     def __len__(self):
-        return len(self.rgbs)
+        return len(self.rgbs) if self.split == "train" else 1
 
 
 def get_ray_direction(H, W, focal):
