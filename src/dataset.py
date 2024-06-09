@@ -50,8 +50,6 @@ class NerfDatasetRealImages(Dataset):
         # assuming one camera is used for all pictures
         self.camera = self.scene_manager.cameras[1]
 
-        # matricies to convert from world coordinates to camera coordinates
-        self.c2w = []
         # image rgbs
         self.rgbs = []
         # rays casted from camera to each pixel
@@ -67,49 +65,46 @@ class NerfDatasetRealImages(Dataset):
         )
         # scaling factors if we need to resize our images
         # lazily initialized when reading first image
+        world2cams = []
         self.scale_factor_x = self.scale_factor_y = 1
         bottom = torch.tensor([0, 0, 0, 1]).reshape(1, 4)
         for _, img in self.scene_manager.images.items():
-            translation = torch.from_numpy(img.t).reshape(3, 1)
+            translation = torch.from_numpy(img.tvec).reshape(3, 1)
             rotation = torch.from_numpy(img.R())
             world2cam = torch.concatenate(
                 [torch.concatenate([rotation, translation], dim=1), bottom], dim=0
             ).float()
-            cam2world = torch.linalg.inv(world2cam)
-            self.c2w.append(cam2world)
+            world2cams.append(world2cam)
             # get image rgbs
-            rgb = Image.open(self.data_path + "/images/" + img.name)
+            rgb = Image.open(self.data_path + "/images/" + img.name).convert("RGB")
             if [rgb.width, rgb.height] != self.image_resolution:
-                if [self.scale_factor_x, self.scale_factor_y] == [1, 1]:
-                    # scale pix2cam matrix
-                    self.scale_factor_x = self.image_resolution[0] / rgb.width
-                    self.scale_factor_y = self.image_resolution[1] / rgb.height
-                    self.pix2cam = self.pix2cam @ torch.diag(
-                        torch.tensor([self.scale_factor_x, self.scale_factor_y, 1])
-                    )
+                # if [self.scale_factor_x, self.scale_factor_y] == [1, 1]:
+                #     # scale pix2cam matrix
+                #     self.scale_factor_x = self.image_resolution[0] / rgb.width
+                #     self.scale_factor_y = self.image_resolution[1] / rgb.height
+                #     self.pix2cam = self.pix2cam @ torch.diag(
+                #         torch.tensor([self.scale_factor_x, self.scale_factor_y, 1])
+                #     )
                 rgb = rgb.resize(self.image_resolution, Image.Resampling.LANCZOS)
 
-            rgb = self.transforms(rgb)  # [3,4], H, W
-            # we have alpha channel
-            if rgb.dim() == 3:
-                # do the same as blender dataset
-                # TODO optimize
-                rgb = rgb.view(4, -1).permute(1, 0)  # (h*w, 4) RGBA -> (640000, 4)
-                rgb = rgb[:, :3] * rgb[:, -1:] + (1 - rgb[:, -1:])
-                # return to prevous dimensions
-                rgb = rgb.permute(1, 0).reshape(
-                    3, self.image_resolution[0], self.image_resolution[1]
-                )
+            rgb = self.transforms(rgb)
             self.rgbs.append(rgb)
+            self.image_names.append(img.name)
+
+        world2cams = torch.stack(world2cams)
+        cam2worlds = torch.linalg.inv(world2cams)
+        self.poses = cam2worlds[..., :3, :4]
+        # fit poses into unit cube, from multinerf
+        self.poses = utils.transform_poses_pca(self.poses)
+        for pose in self.poses:
             ray_origins, ray_directions = utils.get_rays(
                 self.image_resolution[0],
                 self.image_resolution[1],
                 self.pix2cam,
-                cam2world,
+                pose,
             )
             self.rays_origins.append(ray_origins.float())
             self.rays_directions.append(ray_directions.float())
-            self.image_names.append(img.name)
 
     def __getitem__(self, index):
         return {

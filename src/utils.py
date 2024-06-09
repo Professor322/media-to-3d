@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 
 
@@ -31,29 +32,26 @@ def get_pix2cam(focal_x, focal_y, principal_point_x, principal_point_y):
     )
 
 
-def get_rays(H, W, pix2cam, cam2world):
+def get_rays(H, W, pix2cam, pose):
     """
     H - height
     W - width
     pix2cam - translation matrix from pixels to camera coordinates (3, 3)
-    cam2world - tranlsation matrix from camera coordinates to world coordinates (3, 4)
+    pose - tranlsation matrix from camera coordinates to world coordinates (3, 4)
     """
     x, y = get_pixel_coordinates(H, W)
 
     def pixel_to_direction(x, y):
-        # shoot ray through the middle of the pixel
-        return torch.stack([x + 0.5, y + 0.5, torch.ones_like(x)], dim=-1)
+        return torch.stack([x, y, torch.ones_like(x)], dim=-1)
 
-    # Switch from COLMAP (right, down, fwd) to NeRF (right, up, back) frame.
-    cam2world = cam2world @ torch.diag(torch.tensor([1, -1, -1, 1], dtype=torch.float32))
-
+    # Switch from COLMAP (right, down, fwd) to OpenGL (right, up, back) frame.
+    pose = pose @ torch.diag(torch.tensor([1, -1, -1, 1], dtype=torch.float32))
     directions_camera_coords = pixel_to_direction(x, y) @ pix2cam
-    directions_real_world_coords = directions_camera_coords @ cam2world[:3, :3].T
+    directions_real_world_coords = directions_camera_coords @ pose[:3, :3]
     directions_real_world_coords = directions_real_world_coords / torch.norm(
         directions_real_world_coords, dim=-1, keepdim=True
     )
-
-    origins = cam2world[..., :3, -1].expand(directions_real_world_coords.shape)
+    origins = pose[..., :3, -1].expand(directions_real_world_coords.shape)
     return origins.reshape(-1, 3), directions_camera_coords.reshape(-1, 3)
 
 
@@ -92,3 +90,55 @@ def cumprod_exclusive(tensor: torch.Tensor) -> torch.Tensor:
     cumprod[..., 0] = 1.0
 
     return cumprod
+
+
+# https://github.com/bmild/nerf/issues/34
+def transform_poses_pca(poses):
+    """Transforms poses so principal components lie on XYZ axes.
+
+    Args:
+    poses: a (N, 3, 4) array containing the cameras' camera to world transforms.
+
+    Returns:
+    A tuple (poses, transform), with the transformed poses and the applied
+    camera_to_world transforms.
+    """
+    t = poses[:, :3, 3].cpu().detach().numpy()
+    t_mean = t.mean(axis=0)
+    t = t - t_mean
+
+    eigval, eigvec = np.linalg.eig(t.T @ t)
+    # Sort eigenvectors in order of largest to smallest eigenvalue.
+    # numpy works with complex numbers sorting, whereas torch does not
+    inds = np.argsort(eigval)[::-1]
+    eigvec = eigvec[:, inds]
+    rot = eigvec.T
+    if np.linalg.det(rot) < 0:
+        rot = np.diag(torch.Tensor([1, 1, -1])) @ rot
+
+    transform = np.concatenate([rot, rot @ -t_mean[:, None]], -1)
+    transform = torch.from_numpy(transform)
+    poses_recentered = unpad_poses(transform @ pad_poses(poses))
+    transform = torch.concatenate([transform, torch.eye(4)[3:]], axis=0)
+
+    # Flip coordinate system if z component of y-axis is negative
+    if poses_recentered.mean(axis=0)[2, 1] < 0:
+        poses_recentered = torch.diag(torch.Tensor([1, -1, -1])) @ poses_recentered
+        transform = torch.diag(torch.Tensor([1, -1, -1, 1])) @ transform
+
+    # Just make sure it's it in the [-1, 1]^3 cube
+    scale_factor = 1.0 / torch.max(torch.abs(poses_recentered[:, :3, 3]))
+    poses_recentered[:, :3, 3] *= scale_factor
+    # transform = torch.diag(torch.Tensor([scale_factor] * 3 + [1])) @ transform
+    return poses_recentered
+
+
+def pad_poses(p):
+    """Pad [..., 3, 4] pose matrices with a homogeneous bottom row [0,0,0,1]."""
+    bottom = torch.broadcast_to(torch.Tensor([0, 0, 0, 1.0]), p[..., :1, :4].shape)
+    return torch.concatenate([p[..., :3, :4], bottom], axis=-2)
+
+
+def unpad_poses(p):
+    """Remove the homogeneous bottom row from [..., 4, 4] pose matrices."""
+    return p[..., :3, :4]
