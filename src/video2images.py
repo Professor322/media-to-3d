@@ -1,10 +1,11 @@
 import os
 import shutil
 import subprocess
-import sys
 
 import cv2
 import torch
+
+import background_remover
 
 
 class VideoPreprocessor:
@@ -13,10 +14,13 @@ class VideoPreprocessor:
     It also runs COLMAP to estimate camera positions
     """
 
-    def __init__(self, video_path, images_path, colmap_script_path, num_frames):
+    def __init__(
+        self, video_path, images_path, colmap_script_path, num_frames, remove_background
+    ):
         self.video_path = video_path
         self.images_path = images_path
         self.colmap_script_path = colmap_script_path
+        self.remove_background = remove_background
         assert os.path.exists(self.video_path)
         self.video_capture = cv2.VideoCapture(self.video_path)
 
@@ -73,7 +77,18 @@ class VideoPreprocessor:
             shell=True,
             executable="/bin/bash",
         )
-        print("Done")
+        if self.remove_background:
+            print("Removing background...")
+            os.mkdir(self.images_path + "/images_no_background/")
+            for img_frame_index in self.frame_indicies:
+                background_remover.remove_bg(
+                    src_img_path=f"{self.images_path}/images/frame_{img_frame_index}.jpg",
+                    out_img_path=f"{self.images_path}/images_no_background/frame_{img_frame_index}.jpg",
+                )
+            os.rename(f"{self.images_path}/images", f"{self.images_path}/original_images")
+            os.rename(
+                f"{self.images_path}/images_no_background", f"{self.images_path}/images"
+            )
 
     def delete_processed_images(self):
         shutil.rmtree(self.images_path)

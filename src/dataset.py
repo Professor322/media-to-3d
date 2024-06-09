@@ -89,7 +89,17 @@ class NerfDatasetRealImages(Dataset):
                     )
                 rgb = rgb.resize(self.image_resolution, Image.Resampling.LANCZOS)
 
-            rgb = self.transforms(rgb)
+            rgb = self.transforms(rgb)  # [3,4], H, W
+            # we have alpha channel
+            if rgb.dim() == 3:
+                # do the same as blender dataset
+                # TODO optimize
+                rgb = rgb.view(4, -1).permute(1, 0)  # (h*w, 4) RGBA -> (640000, 4)
+                rgb = rgb[:, :3] * rgb[:, -1:] + (1 - rgb[:, -1:])
+                # return to prevous dimensions
+                rgb = rgb.permute(1, 0).reshape(
+                    3, self.image_resolution[0], self.image_resolution[1]
+                )
             self.rgbs.append(rgb)
             ray_origins, ray_directions = utils.get_rays(
                 self.image_resolution[0],
