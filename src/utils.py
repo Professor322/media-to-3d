@@ -44,15 +44,21 @@ def get_rays(H, W, pix2cam, pose):
     def pixel_to_direction(x, y):
         return torch.stack([x, y, torch.ones_like(x)], dim=-1)
 
+    mat_vec_mul = lambda A, b: torch.matmul(A, b[..., None])[..., 0]
+    camera_directions = mat_vec_mul(pix2cam, pixel_to_direction(x, y))
     # Switch from COLMAP (right, down, fwd) to OpenGL (right, up, back) frame.
-    pose = pose @ torch.diag(torch.tensor([1, -1, -1, 1], dtype=torch.float32))
-    directions_camera_coords = pixel_to_direction(x, y) @ pix2cam
-    directions_real_world_coords = directions_camera_coords @ pose[:3, :3]
-    directions_real_world_coords = directions_real_world_coords / torch.norm(
-        directions_real_world_coords, dim=-1, keepdim=True
+    camera_directions = torch.matmul(
+        camera_directions, torch.diag(torch.tensor([1.0, -1.0, -1.0]))
     )
-    origins = pose[..., :3, -1].expand(directions_real_world_coords.shape)
-    return origins.reshape(-1, 3), directions_camera_coords.reshape(-1, 3)
+
+    # Apply camera rotation matrices.
+    camera_directions = mat_vec_mul(pose[:3, :3], camera_directions)
+
+    origins = torch.broadcast_to(pose[:3, -1], camera_directions.shape)
+    viewdirs = camera_directions / torch.linalg.norm(
+        camera_directions, axis=-1, keepdims=True
+    )
+    return origins.reshape(-1, 3), viewdirs.reshape(-1, 3)
 
 
 def intervals_to_ray_points(point_intervals, ray_directions, ray_origin):
