@@ -64,6 +64,13 @@ class NerfDatasetRealImages(Dataset):
         self.pix2cam = utils.get_pix2cam(
             self.camera.fx, self.camera.fy, self.camera.cx, self.camera.cy
         )
+        # add distortion params, assuming we always using OPENCV camera
+        self.distortion_params = {k: 0.0 for k in ["k1", "k2", "k3", "p1", "p2"]}
+        self.distortion_params["k1"] = self.camera.k1
+        self.distortion_params["k2"] = self.camera.k2
+        self.distortion_params["p1"] = self.camera.p1
+        self.distortion_params["p2"] = self.camera.p2
+
         # initialized when first image read
         self.image_resolution = None
         world2cams = []
@@ -99,10 +106,11 @@ class NerfDatasetRealImages(Dataset):
         self.poses = utils.transform_poses_pca(self.poses)
         for pose in self.poses:
             ray_origins, ray_directions = utils.get_rays(
-                self.image_resolution[0],
                 self.image_resolution[1],
+                self.image_resolution[0],
                 self.pix2cam,
                 pose,
+                self.distortion_params,
             )
             self.rays_origins.append(ray_origins.float())
             self.rays_directions.append(ray_directions.float())
