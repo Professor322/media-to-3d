@@ -22,9 +22,10 @@ class NerfDatasetRealImages(Dataset):
     This is a blend of BlenderDataset and LLFF dataset
     """
 
-    def __init__(self, data_path, image_width, image_height, split="train"):
+    def __init__(self, data_path, downscale_factor=1, split="train"):
         self.data_path = data_path
         self.split = split
+        self.downscale_factor = downscale_factor
         # work around if we end up having multiple camera positions estimations
         max_images = 0
         camera_position_estimations_idx = max_camera_position_estimation_idx = 0
@@ -46,7 +47,6 @@ class NerfDatasetRealImages(Dataset):
         self.scene_manager.load_images()
 
         self.scene_manager.load_cameras()
-        self.image_resolution = [image_width, image_height]
         # assuming one camera is used for all pictures
         self.camera = self.scene_manager.cameras[1]
 
@@ -56,17 +56,17 @@ class NerfDatasetRealImages(Dataset):
         self.rays_origins = []
         self.rays_directions = []
         self.transforms = transforms.ToTensor()
-        self.near = 2.0
-        self.far = 6.0
+        # near/far plane in nerf360 set to 0 and 1 for real data
+        self.near = 0
+        self.far = 1
         self.image_names = []
         # matrix to translate from pixel to camera coordinates
         self.pix2cam = utils.get_pix2cam(
             self.camera.fx, self.camera.fy, self.camera.cx, self.camera.cy
         )
-        # scaling factors if we need to resize our images
-        # lazily initialized when reading first image
+        # initialized when first image read
+        self.image_resolution = None
         world2cams = []
-        self.scale_factor_x = self.scale_factor_y = 1
         bottom = torch.tensor([0, 0, 0, 1]).reshape(1, 4)
         for _, img in self.scene_manager.images.items():
             translation = torch.from_numpy(img.tvec).reshape(3, 1)
@@ -76,15 +76,21 @@ class NerfDatasetRealImages(Dataset):
             ).float()
             world2cams.append(world2cam)
             # get image rgbs
-            rgb = Image.open(self.data_path + "/images/" + img.name).convert("RGB")
+            rgb = Image.open(self.data_path + f"/images/" + img.name).convert("RGB")
             if [rgb.width, rgb.height] != self.image_resolution:
-                # if [self.scale_factor_x, self.scale_factor_y] == [1, 1]:
-                #     # scale pix2cam matrix
-                #     self.scale_factor_x = self.image_resolution[0] / rgb.width
-                #     self.scale_factor_y = self.image_resolution[1] / rgb.height
-                #     self.pix2cam = self.pix2cam @ torch.diag(
-                #         torch.tensor([self.scale_factor_x, self.scale_factor_y, 1])
-                #     )
+                if self.image_resolution == None:
+                    new_image_width = int(rgb.width / self.downscale_factor)
+                    new_image_height = int(rgb.height / self.downscale_factor)
+                    # preserver aspect ratio
+                    assert [
+                        new_image_width * self.downscale_factor,
+                        new_image_height * self.downscale_factor,
+                    ] == [rgb.width, rgb.height]
+                    self.image_resolution = [new_image_width, new_image_height]
+                    self.pix2cam = self.pix2cam @ torch.diag(
+                        torch.tensor([self.downscale_factor, self.downscale_factor, 1])
+                    )
+                    print(f"Scaled image resolution: {self.image_resolution}")
                 rgb = rgb.resize(self.image_resolution, Image.Resampling.LANCZOS)
 
             rgb = self.transforms(rgb)

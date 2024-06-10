@@ -19,17 +19,17 @@ class NerfSystem(L.LightningModule):
         input_size_ray,
         input_size_direction,
         n_ray_samples,
-        image_width,
-        image_height,
         dataset_type,
         train_dataset_path,
         batch_size,
+        downscale_factor,
         val_dataset_path="",
     ):
         super().__init__()
 
+        self.image_resolution = None
         self.use_hierarchical_sampling = use_hierarchical_sampling
-
+        self.downscale_factor = downscale_factor
         self.automatic_optimization = self.use_hierarchical_sampling != True
         self.ray_sampler_in_linear_disparity = ray_samplers.RaySamplerLinearInDisparity(
             num_samples=n_ray_samples
@@ -37,7 +37,6 @@ class NerfSystem(L.LightningModule):
         self.ray_sampler_pdf = ray_samplers.RaySamplerPDF(num_samples=n_ray_samples)
         self.volume_renderer = volume_renderer.VolumeRenderer()
         self.loss = torch.nn.MSELoss(reduction="mean")
-        self.image_resolution = [image_width, image_height]
         self.dataset_type = dataset_type
         self.train_dataset_path = train_dataset_path
         self.val_dataset_path = val_dataset_path
@@ -154,30 +153,32 @@ class NerfSystem(L.LightningModule):
             )
             return [
                 coarse_rgb.permute(0, 2, 1).reshape(
-                    batch_size, 3, self.image_resolution[0], self.image_resolution[1]
+                    batch_size, 3, self.image_resolution[1], self.image_resolution[0]
                 ),
                 fine_rgb.permute(0, 2, 1).reshape(
-                    batch_size, 3, self.image_resolution[0], self.image_resolution[1]
+                    batch_size, 3, self.image_resolution[1], self.image_resolution[0]
                 ),
             ]
-        # (batch_size, num_rays, 3) -> (batch_size, 3, H, W)
+        # (batch_size, num_rays, 3) -> (batch_size, 3, W, H)
         return coarse_rgb.permute(0, 2, 1).reshape(
-            batch_size, 3, self.image_resolution[0], self.image_resolution[1]
+            batch_size, 3, self.image_resolution[1], self.image_resolution[0]
         )
 
     def setup(self, stage):
         if self.dataset_type == "real":
             self.train_dataset = dataset.NerfDatasetRealImages(
                 data_path=self.train_dataset_path,
-                image_width=self.image_resolution[0],
-                image_height=self.image_resolution[1],
+                downscale_factor=self.downscale_factor,
                 split="train",
             )
-
+            # shortcut, not ideal
+            self.image_resolution = self.train_dataset.image_resolution
+            # TODO:
+            # we will use the same dataset as for training, but for validation
+            # we should use unseen poses
             self.val_dataset = dataset.NerfDatasetRealImages(
                 data_path=self.train_dataset_path,
-                image_width=self.image_resolution[0],
-                image_height=self.image_resolution[1],
+                downscale_factor=self.downscale_factor,
                 split="val",
             )
         elif self.dataset_type == "blender":

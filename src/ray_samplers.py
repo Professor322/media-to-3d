@@ -20,6 +20,8 @@ class RaySamplerLinearInDisparity(torch.nn.Module):
             self.num_samples,
             requires_grad=False,
         )
+        # avoid division by zero in case of near or far plane are 0
+        self.eps = 1e-5
 
     def forward(self, ray_count, near, far, stratified, device):
         """
@@ -30,6 +32,8 @@ class RaySamplerLinearInDisparity(torch.nn.Module):
         Outputs:
             point_intervals: (ray_count, self.num_samples) : depths of the sampled points along the ray
         """
+        near += self.eps
+        far += self.eps
         self.point_intervals = self.point_intervals.to(device)
 
         near, far = near * torch.ones_like(
