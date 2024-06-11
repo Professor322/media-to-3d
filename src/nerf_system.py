@@ -173,6 +173,10 @@ class NerfSystem(L.LightningModule):
                 split="val",
             )
         elif self.dataset_type == "blender":
+            self.image_resolution = [
+                int(800 / self.downscale_factor),
+                int(800 / self.downscale_factor),
+            ]
             self.train_dataset = dataset.BlenderDataset(
                 self.train_dataset_path, split="train", img_wh=self.image_resolution
             )
@@ -189,8 +193,8 @@ class NerfSystem(L.LightningModule):
             rgbs = batch["rgb"]
         elif self.dataset_type == "blender":
             ray_origins, ray_directions = (
-                batch["rays"][None, :, 0:3],
-                batch["rays"][None, :, 3:6],
+                batch["rays"][:, 0:3],
+                batch["rays"][:, 3:6],
             )
             near, far = batch["rays"][:, 6:7][0].item(), batch["rays"][:, 7:8][0].item()
             rgbs = batch["rgbs"]
