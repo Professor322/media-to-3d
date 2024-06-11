@@ -57,19 +57,22 @@ class NerfDatasetRealImages(Dataset):
         self.rays_directions = []
         self.transforms = transforms.ToTensor()
         # near/far plane in nerf360 set to 0 and 1 for real data
-        self.near = 0
-        self.far = 1
+        self.near = 0.0
+        self.far = 1.0
         self.image_names = []
+
         # matrix to translate from pixel to camera coordinates
         self.pix2cam = utils.get_pix2cam(
             self.camera.fx, self.camera.fy, self.camera.cx, self.camera.cy
         )
-        # add distortion params, assuming we always using OPENCV camera
         self.distortion_params = {k: 0.0 for k in ["k1", "k2", "k3", "p1", "p2"]}
-        self.distortion_params["k1"] = self.camera.k1
-        self.distortion_params["k2"] = self.camera.k2
-        self.distortion_params["p1"] = self.camera.p1
-        self.distortion_params["p2"] = self.camera.p2
+        if self.camera.camera_type == 2:  # simple radial
+            self.distortion_params["k1"] = self.camera.k1
+        elif self.camera.camera_type == 4:  # opencv
+            self.distortion_params["k1"] = self.camera.k1
+            self.distortion_params["k2"] = self.camera.k2
+            self.distortion_params["p1"] = self.camera.p1
+            self.distortion_params["p2"] = self.camera.p2
 
         # initialized when first image read
         self.image_resolution = None
@@ -114,16 +117,31 @@ class NerfDatasetRealImages(Dataset):
             )
             self.rays_origins.append(ray_origins.float())
             self.rays_directions.append(ray_directions.float())
+        self.rays_origins = torch.stack(self.rays_origins).reshape(-1, 3)
+        self.rays_directions = torch.stack(self.rays_directions).reshape(-1, 3)
+        self.rgbs = torch.stack(self.rgbs).permute(0, 2, 3, 1).reshape(-1, 3)
 
     def __getitem__(self, index):
-        return {
-            "rgb": self.rgbs[index],
-            "near": self.near,
-            "far": self.far,
-            "ray_origins": self.rays_origins[index],
-            "ray_directions": self.rays_directions[index],
-            "image_name": self.image_names[index],
-        }
+        if self.split == "train":
+            return {
+                "rgb": self.rgbs[index],
+                "near": self.near,
+                "far": self.far,
+                "ray_origins": self.rays_origins[index],
+                "ray_directions": self.rays_directions[index],
+            }
+        else:
+            num_samples = self.image_resolution[0] * self.image_resolution[1]
+            sample_begin = index * num_samples
+            sample_end = (index + 1) * num_samples
+            return {
+                "rgb": self.rgbs[sample_begin:sample_end],
+                "near": self.near,
+                "far": self.far,
+                "ray_origins": self.rays_origins[sample_begin:sample_end],
+                "ray_directions": self.rays_directions[sample_begin:sample_end],
+                "image_name": self.image_names[index],
+            }
 
     def __len__(self):
         return len(self.rgbs) if self.split == "train" else 1

@@ -133,8 +133,8 @@ class NerfSystem(L.LightningModule):
         )
 
     def forward(self, ray_origins, ray_directions, near, far):
-        batch_size = ray_directions.shape[0]
-        ray_count = ray_directions.shape[1]
+        # batch_size = ray_directions.shape[0]
+        ray_count = ray_directions.shape[0]
         # do_stratification = self.training == True
         do_stratification = True
         coarse_rgb, weights = self.coarse_rgb(
@@ -151,18 +151,9 @@ class NerfSystem(L.LightningModule):
                 weights,
                 do_stratification,
             )
-            return [
-                coarse_rgb.permute(0, 2, 1).reshape(
-                    batch_size, 3, self.image_resolution[1], self.image_resolution[0]
-                ),
-                fine_rgb.permute(0, 2, 1).reshape(
-                    batch_size, 3, self.image_resolution[1], self.image_resolution[0]
-                ),
-            ]
-        # (batch_size, num_rays, 3) -> (batch_size, 3, W, H)
-        return coarse_rgb.permute(0, 2, 1).reshape(
-            batch_size, 3, self.image_resolution[1], self.image_resolution[0]
-        )
+            return [coarse_rgb, fine_rgb]
+        # (batch_size, num_rays, 3)
+        return coarse_rgb
 
     def setup(self, stage):
         if self.dataset_type == "real":
@@ -202,11 +193,7 @@ class NerfSystem(L.LightningModule):
                 batch["rays"][None, :, 3:6],
             )
             near, far = batch["rays"][:, 6:7][0].item(), batch["rays"][:, 7:8][0].item()
-            rgbs = (
-                batch["rgbs"]
-                .permute(1, 0)
-                .reshape(1, 3, self.image_resolution[0], self.image_resolution[1])
-            )
+            rgbs = batch["rgbs"]
 
         results = self.forward(ray_origins, ray_directions, near, far)
         loss = self.loss(results, rgbs)
@@ -247,6 +234,8 @@ class NerfSystem(L.LightningModule):
         )
 
     def validation_step(self, batch, batch_nb):
+        if batch_nb != 0:
+            return {}
         if self.dataset_type == "real":
             near = batch["near"][0].item()
             far = batch["near"][0].item()
@@ -258,23 +247,20 @@ class NerfSystem(L.LightningModule):
                 batch["rays"][..., 6:7][0, 0].item(),
                 batch["rays"][..., 7:8][0, 0].item(),
             )
-            rgbs = (
-                batch["rgbs"]
-                .permute(0, 2, 1)
-                .reshape(1, 3, self.image_resolution[0], self.image_resolution[1])
-            )
+            rgbs = batch["rgbs"]
+
         results = self.forward(ray_origins, ray_directions, near, far)
-        log = {"val_loss": self.loss(results, rgbs)}
-
-        if batch_nb == 0:
-            plt.subplot(121)
-            plt.imshow(results[0].permute(1, 2, 0).cpu().numpy())
-            plt.axis("off")
-            plt.subplot(122)
-            plt.imshow(rgbs[0].permute(1, 2, 0).cpu().numpy())
-            plt.axis("off")
-            plt.show()
-
         loss = self.loss(results, rgbs)
-        log["val_psnr"] = loss
+        log = {"val_loss": loss}
+
+        # transform into img
+        results = results.reshape(self.image_resolution[1], self.image_resolution[0], 3)
+        rgbs = rgbs.reshape(self.image_resolution[1], self.image_resolution[0], 3)
+        plt.subplot(121)
+        plt.imshow(results.cpu().numpy())
+        plt.axis("off")
+        plt.subplot(122)
+        plt.imshow(rgbs.cpu().numpy())
+        plt.axis("off")
+        plt.show()
         return log

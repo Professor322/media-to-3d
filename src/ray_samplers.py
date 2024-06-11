@@ -57,7 +57,6 @@ class RaySamplerLinearInDisparity(torch.nn.Module):
                 point_intervals.shape, dtype=point_intervals.dtype, device=device
             )
             point_intervals = lower + (upper - lower) * t_rand
-
         return point_intervals
 
 
