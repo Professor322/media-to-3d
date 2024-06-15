@@ -56,9 +56,10 @@ class NerfDatasetRealImages(Dataset):
         self.rays_origins = []
         self.rays_directions = []
         self.transforms = transforms.ToTensor()
-        # near/far plane in nerf360 set to 0 and 1 for real data
-        self.near = 0.0
-        self.far = 1.0
+        # TODO: estimate near and far planes for each image,
+        # currently does not work properly
+        self.near = 2
+        self.far = 6
         self.image_names = []
 
         # matrix to translate from pixel to camera coordinates
@@ -145,6 +146,9 @@ class NerfDatasetRealImages(Dataset):
 
     def __len__(self):
         return len(self.rgbs) if self.split == "train" else 1
+
+
+# code below has been copied
 
 
 def get_ray_direction(H, W, focal):

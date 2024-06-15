@@ -1,5 +1,9 @@
+import os
+import shutil
+
 import lightning as L
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
@@ -23,9 +27,20 @@ class NerfSystem(L.LightningModule):
         train_dataset_path,
         batch_size,
         downscale_factor,
+        save_validation_imgs=False,
+        show_validation_imgs=True,
         val_dataset_path="",
     ):
         super().__init__()
+
+        self.show_validation_imgs = show_validation_imgs
+        self.save_validation_imgs = save_validation_imgs
+        if self.save_validation_imgs:
+            self.validation_imgs_path = "./validation_imgs"
+            if os.path.exists(self.validation_imgs_path):
+                print(f"{self.validation_imgs_path} exists, deleting")
+                shutil.rmtree(self.validation_imgs_path)
+            os.mkdir(self.validation_imgs_path)
 
         self.image_resolution = None
         self.use_hierarchical_sampling = use_hierarchical_sampling
@@ -58,8 +73,6 @@ class NerfSystem(L.LightningModule):
             self.input_size_direction = (
                 self.positional_encoder_ray_direction.output_channels
             )
-
-        print(f"Model inputs {self.input_size_ray, self.input_size_direction}")
 
         self.coarse_model = nerf_model.NerfModel(
             self.input_size_ray, self.input_size_direction
@@ -260,11 +273,17 @@ class NerfSystem(L.LightningModule):
         # transform into img
         results = results.reshape(self.image_resolution[1], self.image_resolution[0], 3)
         rgbs = rgbs.reshape(self.image_resolution[1], self.image_resolution[0], 3)
-        plt.subplot(121)
-        plt.imshow(results.cpu().numpy())
-        plt.axis("off")
-        plt.subplot(122)
-        plt.imshow(rgbs.cpu().numpy())
-        plt.axis("off")
-        plt.show()
+        if self.save_validation_imgs:
+            plt.imsave(
+                f"{self.validation_imgs_path}/img_{self.current_epoch}.png",
+                np.clip(results.cpu().numpy(), 0, 1),
+            )
+        if self.show_validation_imgs:
+            plt.subplot(121)
+            plt.imshow(results.cpu().numpy())
+            plt.axis("off")
+            plt.subplot(122)
+            plt.imshow(rgbs.cpu().numpy())
+            plt.axis("off")
+            plt.show()
         return log
