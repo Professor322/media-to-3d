@@ -243,7 +243,7 @@ class NerfSystem(L.LightningModule):
         return DataLoader(
             self.train_dataset,
             shuffle=True,
-            num_workers=4,
+            # num_workers=4,
             batch_size=self.batch_size,
             pin_memory=True,
         )
@@ -252,7 +252,7 @@ class NerfSystem(L.LightningModule):
         return DataLoader(
             self.val_dataset,
             shuffle=False,
-            num_workers=4,
+            # num_workers=4,
             batch_size=1,
             pin_memory=True,
         )

@@ -1,10 +1,16 @@
 import os
 import shutil
+import sys
 from enum import IntEnum
 from urllib.request import urlretrieve
 
 import telebot
 from pydantic import BaseModel
+
+sys.path.insert(1, "./src")
+from renderer import render
+from trainer import train
+from video2images import VideoPreprocessor
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CUSTOMER_DATA_DIR = "./customer"
@@ -13,21 +19,42 @@ bot = telebot.TeleBot(BOT_TOKEN)
 
 
 class InputType(IntEnum):
-    VIDEO = (1,)
-    ARHIVE_REAL_PHOTOS = (2,)
-    ARHIVE_SYNTHETIC = (3,)
-    UNKNOWN = (4,)
+    VIDEO = 1
+    ARHIVE_REAL_PHOTOS = 2
+    ARHIVE_SYNTHETIC = 3
+    UNKNOWN = 4
 
 
 class RenderType(IntEnum):
-    VIDEO = (1,)
-    MESH = (2,)
+    VIDEO = 1
+    MESH = 2
     UNKNOWN = 3
 
 
 class Config(BaseModel):
     data_type: InputType = InputType.ARHIVE_SYNTHETIC
     render_type: RenderType = RenderType.VIDEO
+    input_video_path: str = ""
+    fps: int = 30
+    video_duration: int = 5
+    output_path: str = CUSTOMER_DATA_DIR
+    train_checkpoint_path: str = ""
+    render_checkpoint_path: str = ""
+    input_size_ray: int = 3
+    input_size_direction: int = 3
+    n_ray_samples: int = 12
+    downscale_factor: float = 8.0
+    batch_size: int = 20000
+    use_positional_encoding: bool = True
+    use_hierarchical_sampling: bool = False
+    dataset_type: str = "real"
+    train_dataset_path: str = CUSTOMER_DATA_DIR + "/train_data"
+    show_validation_imgs: bool = False
+    save_validation_imgs: bool = True
+    num_epochs: int = 2
+    frames_to_extract: int = 30
+    remove_background: bool = True
+    colmap_script_path: str = "./scripts/local_colmap_and_resize.sh"
 
 
 config = Config()
@@ -99,7 +126,7 @@ def download_file(file_id):
     file = bot.get_file(file_id)
     url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file.file_path}"
     urlretrieve(url=url, filename=local_file_path)
-    return local_file_path
+    config.input_video_path = local_file_path
 
 
 def handle_archive(file):
@@ -112,16 +139,24 @@ def handle_video(video):
 
 def process(chat_id):
     # preprocess video
+    # video_preprocessor = VideoPreprocessor(video_path=config.input_video_path,
+    #                                        colmap_script_path=config.colmap_script_path,
+    #                                        num_frames=config.frames_to_extract,
+    #                                        remove_background=config.remove_background,
+    #                                        images_path=config.train_dataset_path)
     # start training
+    best_model_path = train(config=config)
     # render video
+    config.render_checkpoint_path = best_model_path
+    render(config=config)
     bot.send_message(chat_id, "Ready. Uploading result...")
 
 
 def handle_input_data(message):
-    if os.path.exists(CUSTOMER_DATA_DIR):
-        print("Dir exists, clearing")
-        shutil.rmtree(CUSTOMER_DATA_DIR)
-    os.mkdir(CUSTOMER_DATA_DIR)
+    # if os.path.exists(CUSTOMER_DATA_DIR):
+    #     print("Dir exists, clearing")
+    #     shutil.rmtree(CUSTOMER_DATA_DIR)
+    # os.mkdir(CUSTOMER_DATA_DIR)
 
     expect_archive = config.data_type in [
         InputType.ARHIVE_REAL_PHOTOS,

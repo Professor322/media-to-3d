@@ -96,7 +96,7 @@ class NerfDatasetRealImages(Dataset):
                     self.image_resolution = [new_image_width, new_image_height]
                     print(f"Scaled image resolution: {self.image_resolution}")
                     self.pix2cam = self.pix2cam @ torch.diag(
-                        torch.tensor([self.downscale_factor, self.downscale_factor, 1])
+                        torch.tensor([self.downscale_factor, self.downscale_factor, 1.0])
                     )
                 rgb = rgb.resize(self.image_resolution, Image.Resampling.LANCZOS)
 
