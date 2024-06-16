@@ -160,4 +160,4 @@ cython_debug/
 #.idea/
 *lightning_logs
 src/pycolmap
-validation_imgs
+validation_imgs*
