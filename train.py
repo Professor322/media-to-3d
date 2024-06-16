@@ -20,19 +20,22 @@ def str2bool(v):
 
 
 def train(config):
-    nerfsys = NerfSystem(
-        input_size_ray=config.input_size_ray,
-        input_size_direction=config.input_size_direction,
-        n_ray_samples=config.n_ray_samples,
-        downscale_factor=config.downscale_factor,
-        batch_size=config.batch_size,
-        use_positional_encoding=config.use_positional_encoding,
-        use_hierarchical_sampling=config.use_hierarchical_sampling,
-        dataset_type=config.dataset_type,
-        train_dataset_path=config.train_dataset_path,
-        show_validation_imgs=config.show_validation_imgs,
-        save_validation_imgs=config.save_validation_imgs,
-    )
+    if config.checkpoint_path != "":
+        nerfsys = NerfSystem.load_from_checkpoint(config.checkpoint_path)
+    else:
+        nerfsys = NerfSystem(
+            input_size_ray=config.input_size_ray,
+            input_size_direction=config.input_size_direction,
+            n_ray_samples=config.n_ray_samples,
+            downscale_factor=config.downscale_factor,
+            batch_size=config.batch_size,
+            use_positional_encoding=config.use_positional_encoding,
+            use_hierarchical_sampling=config.use_hierarchical_sampling,
+            dataset_type=config.dataset_type,
+            train_dataset_path=config.train_dataset_path,
+            show_validation_imgs=config.show_validation_imgs,
+            save_validation_imgs=config.save_validation_imgs,
+        )
 
     trainer = L.Trainer(
         max_epochs=config.num_epochs,
@@ -117,6 +120,13 @@ def main():
         help="Show validation imgs on validation epoch. Not recommend to use in the command line",
         default=False,
     )
+    parser.add_argument(
+        "--checkpoint_path",
+        type=str,
+        default="",
+        help="Checkpoint to start training from",
+    )
+
     config = parser.parse_args()
     train(config)
 

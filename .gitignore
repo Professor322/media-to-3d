@@ -163,3 +163,5 @@ src/pycolmap
 validation_imgs*
 test
 .token
+customer
+renders
