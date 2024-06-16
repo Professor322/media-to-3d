@@ -139,11 +139,13 @@ def handle_video(video):
 
 def process(chat_id):
     # preprocess video
-    # video_preprocessor = VideoPreprocessor(video_path=config.input_video_path,
-    #                                        colmap_script_path=config.colmap_script_path,
-    #                                        num_frames=config.frames_to_extract,
-    #                                        remove_background=config.remove_background,
-    #                                        images_path=config.train_dataset_path)
+    video_preprocessor = VideoPreprocessor(
+        video_path=config.input_video_path,
+        colmap_script_path=config.colmap_script_path,
+        num_frames=config.frames_to_extract,
+        remove_background=config.remove_background,
+        images_path=config.train_dataset_path,
+    )
     # start training
     best_model_path = train(config=config)
     # render video
@@ -153,10 +155,10 @@ def process(chat_id):
 
 
 def handle_input_data(message):
-    # if os.path.exists(CUSTOMER_DATA_DIR):
-    #     print("Dir exists, clearing")
-    #     shutil.rmtree(CUSTOMER_DATA_DIR)
-    # os.mkdir(CUSTOMER_DATA_DIR)
+    if os.path.exists(CUSTOMER_DATA_DIR):
+        print("Dir exists, clearing")
+        shutil.rmtree(CUSTOMER_DATA_DIR)
+    os.mkdir(CUSTOMER_DATA_DIR)
 
     expect_archive = config.data_type in [
         InputType.ARHIVE_REAL_PHOTOS,
