@@ -22,12 +22,17 @@ def render_video(system=None, fps=30, video_duration=5, output_path=""):
         fps,
         (H, W),
     )
+    counter = 0
     for rays in tqdm(
         system.val_dataset.get_render_rays(fps, video_duration),
         total=fps * video_duration,
     ):
         if dataset_type == "real":
-            pass
+            ray_origins, ray_directions = (
+                rays["ray_origins"].cuda(),
+                rays["ray_directions"].cuda(),
+            )
+            near, far = rays["near"], rays["far"]
         elif dataset_type == "blender":
             rays = rays.cuda()
             ray_origins, ray_directions = (
@@ -39,7 +44,9 @@ def render_video(system=None, fps=30, video_duration=5, output_path=""):
             frame = system(ray_origins, ray_directions, near, far)
         frame = np.clip(frame.cpu().numpy(), 0, 1) * 255
         frame = frame.reshape(H, W, 3).astype("uint8")
+        cv2.imwrite(f"./test/frame_{counter}.jpg", frame)
         writer.write(frame)
+        counter += 1
     writer.release()
     print(f"video saved in {output_path + video_filename}")
 

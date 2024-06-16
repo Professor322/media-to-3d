@@ -32,7 +32,7 @@ def get_pix2cam(focal_x, focal_y, principal_point_x, principal_point_y):
     )
 
 
-def get_rays(H, W, pix2cam, pose, distortion_params):
+def get_rays(H, W, pix2cam, pose, distortion_params=None):
     """
     H - height
     W - width
@@ -47,9 +47,10 @@ def get_rays(H, W, pix2cam, pose, distortion_params):
 
     mat_vec_mul = lambda A, b: torch.matmul(A, b[..., None])[..., 0]
     camera_directions = mat_vec_mul(pix2cam, pixel_to_direction(x, y))
-    x, y = _radial_and_tangential_undistort(
-        camera_directions[..., 0], camera_directions[..., 1], **distortion_params
-    )
+    if distortion_params != None:
+        x, y = _radial_and_tangential_undistort(
+            camera_directions[..., 0], camera_directions[..., 1], **distortion_params
+        )
 
     camera_directions = pixel_to_direction(x, y)
     # Switch from COLMAP (right, down, fwd) to OpenGL (right, up, back) frame.

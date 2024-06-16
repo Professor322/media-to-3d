@@ -59,8 +59,8 @@ class NerfDatasetRealImages(Dataset):
         self.transforms = transforms.ToTensor()
         # TODO: estimate near and far planes for each image,
         # currently does not work properly
-        self.near = 2
-        self.far = 6
+        self.near = 2.0
+        self.far = 3.0
         self.image_names = []
 
         # matrix to translate from pixel to camera coordinates
@@ -147,6 +147,26 @@ class NerfDatasetRealImages(Dataset):
 
     def __len__(self):
         return len(self.rgbs) if self.split == "train" else 1
+
+    def get_render_rays(self, duration=5, fps=30):
+        self.render_poses = render_utils.generate_ellipse_path(
+            self.poses, n_frames=duration * fps
+        )
+        for render_pose in self.render_poses:
+            ray_origins, ray_directions = ray_utils.get_rays(
+                self.image_resolution[0],
+                self.image_resolution[1],
+                self.pix2cam,
+                render_pose[:3, :4],
+            )
+            rays = {
+                "ray_origins": ray_origins,
+                "ray_directions": ray_directions,
+                "near": self.near,
+                "far": self.far,
+            }
+
+            yield rays
 
 
 # initial code was copied, but has been modified for rendering needs

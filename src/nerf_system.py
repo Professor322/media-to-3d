@@ -44,7 +44,9 @@ class NerfSystem(L.LightningModule):
                 if self.delete_validation_imgs:
                     print(f"{self.validation_imgs_path} exists, deleting")
                     shutil.rmtree(self.validation_imgs_path)
+                    os.mkdir(self.validation_imgs_path)
             else:
+                print("here")
                 os.mkdir(self.validation_imgs_path)
 
         self.image_resolution = None
@@ -204,7 +206,7 @@ class NerfSystem(L.LightningModule):
         # near and far are the same for all elements in the batch
         if self.dataset_type == "real":
             near = batch["near"][0].item()
-            far = batch["near"][0].item()
+            far = batch["far"][0].item()
             ray_origins, ray_directions = batch["ray_origins"], batch["ray_directions"]
             rgbs = batch["rgb"]
         elif self.dataset_type == "blender":
@@ -260,7 +262,7 @@ class NerfSystem(L.LightningModule):
             return
         if self.dataset_type == "real":
             near = batch["near"][0].item()
-            far = batch["near"][0].item()
+            far = batch["far"][0].item()
             ray_origins, ray_directions = batch["ray_origins"], batch["ray_directions"]
             rgbs = batch["rgb"]
         elif self.dataset_type == "blender":
