@@ -9,9 +9,10 @@ from torch.nn import functional as F
 from torch.utils.data import Dataset
 from torchvision import transforms
 
-import utils
+import ray_utils
+import render_utils
 
-sys.path.insert(1, "./pycolmap/")
+sys.path.insert(1, "./src/pycolmap/")
 import pycolmap
 
 
@@ -63,7 +64,7 @@ class NerfDatasetRealImages(Dataset):
         self.image_names = []
 
         # matrix to translate from pixel to camera coordinates
-        self.pix2cam = utils.get_pix2cam(
+        self.pix2cam = ray_utils.get_pix2cam(
             self.camera.fx, self.camera.fy, self.camera.cx, self.camera.cy
         )
         self.distortion_params = {k: 0.0 for k in ["k1", "k2", "k3", "p1", "p2"]}
@@ -107,11 +108,11 @@ class NerfDatasetRealImages(Dataset):
         cam2worlds = torch.linalg.inv(world2cams)
         self.poses = cam2worlds[..., :3, :4]
         # fit poses into unit cube, from multinerf
-        self.poses = utils.transform_poses_pca(self.poses)
+        self.poses = ray_utils.transform_poses_pca(self.poses)
         for pose in self.poses:
-            ray_origins, ray_directions = utils.get_rays(
-                self.image_resolution[1],
+            ray_origins, ray_directions = ray_utils.get_rays(
                 self.image_resolution[0],
+                self.image_resolution[1],
                 self.pix2cam,
                 pose,
                 self.distortion_params,
@@ -148,51 +149,7 @@ class NerfDatasetRealImages(Dataset):
         return len(self.rgbs) if self.split == "train" else 1
 
 
-# code below has been copied
-
-
-def get_ray_direction(H, W, focal):
-    """
-    Get ray directions for all pixels in camera coordinate.
-    Reference: https://www.scratchapixel.com/lessons/3d-basic-rendering/
-               ray-tracing-generating-camera-rays/standard-coordinate-systems
-    Inputs:
-        H, W, focal: image height, width and focal length
-    Outputs:
-        ray directions: (H, W, 3), the direction of the rays in camera coordinate
-    """
-    i, j = torch.meshgrid(
-        torch.linspace(0, W - 1, W), torch.linspace(0, H - 1, H), indexing="ij"
-    )
-    i = i.t()
-    j = j.t()
-    # blender x -y, -z (only works with these signs)
-    return torch.stack(
-        [(i - W / 2) / focal, -(j - H / 2) / focal, -torch.ones_like(i)], -1
-    )
-
-
-def get_rays_with_dir(directions, c2w):
-    """
-    Get ray origin and normalized directions in world coordinate for all pixels in one image.
-    Inputs:
-        directions: (H, W, 3) precomputed ray directions in camera coordinate
-        c2w: (3, 4) transformation matrix from camera coordinate to world coordinate
-    Outputs:
-        rays_o: (H*W, 3), the origin of the rays in world coordinate
-        rays_d: (H*W, 3), the normalized direction of the rays in world coordinate
-    """
-    # Rotate ray directions from camera coordinate to the world coordinate
-    # Why Transposed matrix ?
-    rays_d = directions @ c2w[:, :3].T  # (H, W, 3)
-    rays_d = rays_d / torch.norm(rays_d, dim=-1, keepdim=True)
-    # The origin of all rays is the camera origin in world coordinate
-    rays_o = c2w[:, 3].expand(rays_d.shape)  # (H, W, 3)
-
-    rays_d = rays_d.view(-1, 3)
-    rays_o = rays_o.view(-1, 3)
-
-    return rays_o, rays_d
+# initial code was copied, but has been modified for rendering needs
 
 
 class BlenderDataset(Dataset):
@@ -226,7 +183,7 @@ class BlenderDataset(Dataset):
         )  # modify focal length to match size self.img_wh
 
         # ray directions for all pixels in camera coordinates, same for all images (same H, W, focal)
-        self.dir_cam = get_ray_direction(h, w, self.focal)  # (h, w, 3)
+        self.dir_cam = ray_utils.get_ray_direction(h, w, self.focal)  # (h, w, 3)
 
         if self.split == "train":  # create buffer of all rays and rgb data
             self.image_paths = []
@@ -249,7 +206,9 @@ class BlenderDataset(Dataset):
                 )  # blend A to RGB -> (h*w, 3)
                 self.all_rgbs += [img]
 
-                rays_o, rays_d = get_rays_with_dir(self.dir_cam, c2w)  # both (h*w, 3)
+                rays_o, rays_d = ray_utils.get_rays_with_dir(
+                    self.dir_cam, c2w
+                )  # both (h*w, 3)
 
                 self.all_rays += [
                     torch.cat(
@@ -296,7 +255,7 @@ class BlenderDataset(Dataset):
             img = img.view(4, -1).permute(1, 0)  # (H*W, 4) RGBA
             img = img[:, :3] * img[:, -1:] + (1 - img[:, -1:])  # blend A to RGB
 
-            rays_o, rays_d = get_rays_with_dir(self.dir_cam, c2w)
+            rays_o, rays_d = ray_utils.get_rays_with_dir(self.dir_cam, c2w)
 
             rays = torch.cat(
                 [
@@ -311,3 +270,22 @@ class BlenderDataset(Dataset):
             sample = {"rays": rays, "rgbs": img, "c2w": c2w, "valid_mask": valid_mask}
 
         return sample
+
+    def get_render_rays(self, duration=5, fps=30):
+        self.render_poses = render_utils.create_spherical_poses(num_poses=duration * fps)
+        # self.render_poses = torch.stack(self.render_poses)
+        for render_pose in self.render_poses:
+            rays_o, rays_d = ray_utils.get_rays_with_dir(
+                self.dir_cam, render_pose[:3, :4]
+            )
+
+            rays = torch.cat(
+                [
+                    rays_o,
+                    rays_d,
+                    self.near * torch.ones_like(rays_o[:, :1]),
+                    self.far * torch.ones_like(rays_o[:, :1]),
+                ],
+                1,
+            )  # (H*W, 8)
+            yield rays

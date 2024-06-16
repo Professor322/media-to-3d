@@ -1,9 +1,9 @@
 import argparse
-# this is ugly but it works
 import sys
 
 import lightning as L
 
+# this is ugly but it works
 sys.path.insert(1, "./src")
 from nerf_system import NerfSystem
 

@@ -11,7 +11,7 @@ import dataset
 import nerf_model
 import positional_encoder
 import ray_samplers
-import utils
+import ray_utils
 import volume_renderer
 
 
@@ -29,18 +29,23 @@ class NerfSystem(L.LightningModule):
         downscale_factor,
         save_validation_imgs=False,
         show_validation_imgs=True,
+        delete_validation_imgs=True,
         val_dataset_path="",
     ):
         super().__init__()
-
+        self.save_hyperparameters()
         self.show_validation_imgs = show_validation_imgs
         self.save_validation_imgs = save_validation_imgs
+        self.delete_validation_imgs = delete_validation_imgs
+
         if self.save_validation_imgs:
             self.validation_imgs_path = "./validation_imgs"
             if os.path.exists(self.validation_imgs_path):
-                print(f"{self.validation_imgs_path} exists, deleting")
-                shutil.rmtree(self.validation_imgs_path)
-            os.mkdir(self.validation_imgs_path)
+                if self.delete_validation_imgs:
+                    print(f"{self.validation_imgs_path} exists, deleting")
+                    shutil.rmtree(self.validation_imgs_path)
+            else:
+                os.mkdir(self.validation_imgs_path)
 
         self.image_resolution = None
         self.use_hierarchical_sampling = use_hierarchical_sampling
@@ -94,7 +99,7 @@ class NerfSystem(L.LightningModule):
             stratified=do_stratification,
             device=self.device,
         ).float()
-        ray_points = utils.intervals_to_ray_points(
+        ray_points = ray_utils.intervals_to_ray_points(
             ray_depth_values, ray_directions, ray_origins
         )
         # expand ray_directions to match ray point size to feed into MLP
@@ -131,7 +136,7 @@ class NerfSystem(L.LightningModule):
             weights=weights,
             device=self.device,
         ).float()
-        ray_points = utils.intervals_to_ray_points(
+        ray_points = ray_utils.intervals_to_ray_points(
             ray_depth_values, ray_directions, ray_origins
         )
         if self.use_positional_encoding:
@@ -146,9 +151,7 @@ class NerfSystem(L.LightningModule):
         )
 
     def forward(self, ray_origins, ray_directions, near, far):
-        # batch_size = ray_directions.shape[0]
         ray_count = ray_directions.shape[0]
-        # do_stratification = self.training == True
         do_stratification = True
         coarse_rgb, weights = self.coarse_rgb(
             ray_count, near, far, ray_origins, ray_directions, do_stratification
@@ -214,7 +217,9 @@ class NerfSystem(L.LightningModule):
 
         results = self.forward(ray_origins, ray_directions, near, far)
         loss = self.loss(results, rgbs)
+        psnr = ray_utils.psnr(loss.item())
         self.log("train/loss", loss)
+        self.log("train/psnr", psnr)
         return loss
 
     def configure_optimizers(self):
@@ -252,7 +257,7 @@ class NerfSystem(L.LightningModule):
 
     def validation_step(self, batch, batch_nb):
         if batch_nb != 0:
-            return {}
+            return
         if self.dataset_type == "real":
             near = batch["near"][0].item()
             far = batch["near"][0].item()
@@ -268,7 +273,9 @@ class NerfSystem(L.LightningModule):
 
         results = self.forward(ray_origins, ray_directions, near, far)
         loss = self.loss(results, rgbs)
-        log = {"val_loss": loss}
+        psnr = ray_utils.psnr(loss.item())
+        self.log("val/loss", loss)
+        self.log("val/psnr", psnr)
 
         # transform into img
         results = results.reshape(self.image_resolution[1], self.image_resolution[0], 3)
@@ -286,4 +293,4 @@ class NerfSystem(L.LightningModule):
             plt.imshow(rgbs.cpu().numpy())
             plt.axis("off")
             plt.show()
-        return log
+        return

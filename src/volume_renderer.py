@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-import utils
+import ray_utils
 
 
 class VolumeRenderer(nn.Module):
@@ -44,7 +44,7 @@ class VolumeRenderer(nn.Module):
         rgb = radiance_field[..., :3]
         sigmas = radiance_field[..., 3]
         alpha = 1.0 - torch.exp(-sigmas * gammas)
-        T = utils.cumprod_exclusive(1.0 - alpha + 1e-10)
+        T = ray_utils.cumprod_exclusive(1.0 - alpha + 1e-10)
 
         weights = T * alpha
         # sum along the rays
