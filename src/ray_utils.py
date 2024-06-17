@@ -47,7 +47,7 @@ def get_rays(H, W, pix2cam, pose, distortion_params=None):
 
     mat_vec_mul = lambda A, b: torch.matmul(A, b[..., None])[..., 0]
     camera_directions = mat_vec_mul(pix2cam, pixel_to_direction(x, y))
-    if distortion_params != None:
+    if distortion_params is not None:
         x, y = _radial_and_tangential_undistort(
             camera_directions[..., 0], camera_directions[..., 1], **distortion_params
         )

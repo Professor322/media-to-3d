@@ -6,7 +6,7 @@ from tqdm import tqdm
 from nerf_system import NerfSystem
 
 
-def render_video(system=None, fps=30, video_duration=5, output_path=""):
+def render_video(system=None, fps=30, video_duration=5, output_path="", debug=True):
     dataset_type = system.dataset_type
     W, H = system.image_resolution
     video_filename = "/render.mp4"
@@ -14,9 +14,10 @@ def render_video(system=None, fps=30, video_duration=5, output_path=""):
         output_path + video_filename,
         cv2.VideoWriter_fourcc("m", "p", "4", "v"),
         fps,
-        (H, W),
+        (W, H),
     )
-    counter = 0
+    if debug:
+        counter = 0
     for rays in tqdm(
         system.val_dataset.get_render_rays(fps, video_duration),
         total=fps * video_duration,
@@ -39,9 +40,10 @@ def render_video(system=None, fps=30, video_duration=5, output_path=""):
         frame = np.clip(frame.cpu().numpy(), 0, 1) * 255
         frame = frame.reshape(H, W, 3).astype("uint8")
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(f"./test/frame_{counter}.jpg", frame)
         writer.write(frame)
-        counter += 1
+        if debug:
+            cv2.imwrite(f"./test/frame_{counter}.jpg", frame)
+            counter += 1
     writer.release()
     print(f"video saved in {output_path + video_filename}")
     return output_path + video_filename
