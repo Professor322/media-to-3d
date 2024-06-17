@@ -38,6 +38,7 @@ def render_video(system=None, fps=30, video_duration=5, output_path=""):
             frame = system(ray_origins, ray_directions, near, far)
         frame = np.clip(frame.cpu().numpy(), 0, 1) * 255
         frame = frame.reshape(H, W, 3).astype("uint8")
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         cv2.imwrite(f"./test/frame_{counter}.jpg", frame)
         writer.write(frame)
         counter += 1
