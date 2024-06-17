@@ -43,16 +43,18 @@ def render_video(system=None, fps=30, video_duration=5, output_path=""):
         counter += 1
     writer.release()
     print(f"video saved in {output_path + video_filename}")
+    return output_path + video_filename
 
 
 def render(config):
+    render_path = ""
     nerfsys = NerfSystem.load_from_checkpoint(
         config.render_checkpoint_path, delete_validation_imgs=False
     )
     nerfsys.eval()
     nerfsys.setup("")
     if config.render_type == "video" or config.render_type == 1:
-        render_video(
+        render_path = render_video(
             system=nerfsys,
             fps=config.fps,
             video_duration=config.video_duration,
@@ -60,3 +62,5 @@ def render(config):
         )
     elif config.render_type == "mesh" or config.render_type == 2:
         raise NotImplementedError("Mesh generation not yet supported")
+
+    return render_path

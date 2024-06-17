@@ -4,6 +4,7 @@ import sys
 from enum import IntEnum
 from urllib.request import urlretrieve
 
+import requests
 import telebot
 from pydantic import BaseModel
 
@@ -150,8 +151,13 @@ def process(chat_id):
     best_model_path = train(config=config)
     # render video
     config.render_checkpoint_path = best_model_path
-    render(config=config)
+    render_path = render(config=config)
     bot.send_message(chat_id, "Ready. Uploading result...")
+    files = {"video": open(render_path, "rb")}
+    requests.post(
+        f"https://api.telegram.org/bot{BOT_TOKEN}/sendVideo?chat_id={chat_id}",
+        files=files,
+    )
 
 
 def handle_input_data(message):
