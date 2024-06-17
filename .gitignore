@@ -127,6 +127,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.media_to_3d/
 
 # Spyder project settings
 .spyderproject
