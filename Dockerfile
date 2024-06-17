@@ -16,6 +16,8 @@ RUN apt update && apt install -y git && rm -rf /var/lib/apt/lists/*
 RUN apt update && apt install -y libjpeg-dev zlib1g-dev && rm -rf /var/lib/apt/lists/*
 RUN apt update && apt install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 RUN apt update && apt install -y gcc && rm -rf /var/lib/apt/lists/*
+RUN apt update && apt install -y colmap && rm -rf /var/lib/apt/lists/*
+
 # Clone the repository
 RUN git clone https://github.com/rmbrualla/pycolmap.git /media_to_3d/src/pycolmap
 
