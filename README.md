@@ -21,7 +21,9 @@ From [multinerf](https://github.com/google-research/multinerf) I took pycolmap, 
 From [this nerf implemenation](https://github.com/kwea123/nerf_pl) I borrowed modular design
 
 Sample video generations from Blender dataset:
-(insert videos)
+https://github.com/Professor322/media-to-3d/assets/36162000/55bfd374-bc4d-4a23-a3ec-ab0027c56a83
+
+
 
 Sample validation tracking:
 (insert videos)
