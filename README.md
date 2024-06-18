@@ -76,7 +76,7 @@ python3 render.py --render_checkpoint_path <checkpoint_path> \
 ```
 BOT_TOKEN=<TOKEN> python3 bot.py
 ```
-How it looks like:
+How it looks like: <br>
 ![telegram_bot_demo](https://github.com/Professor322/media-to-3d/assets/36162000/a291a289-fedd-48d9-9c6c-f5ff023a557f)
 
 ## Docker
