@@ -40,6 +40,11 @@ You might need to install ffmpeg python dev tools and some jpeg tools
 apt install ffmpeg python3.12-dev libjpeg-dev zlib1g-dev
 ```
 
+Clone colmap repo
+```
+git clone https://github.com/rmbrualla/pycolmap.git ./src/pycolmap
+```
+
 Code was tested using `python3.12`
 
 ```
