@@ -23,6 +23,7 @@ From [this nerf implemenation](https://github.com/kwea123/nerf_pl) I borrowed mo
 
 Sample video generations from Blender dataset:<br>
 ![chair_render-ezgif com-video-to-gif-converter](https://github.com/Professor322/media-to-3d/assets/36162000/a5ff4648-b8c0-4012-b685-540f423893f0)
+![drumset_render-ezgif com-video-to-gif-converter](https://github.com/Professor322/media-to-3d/assets/36162000/ad3be4da-1e9a-4f9d-87ce-379a22401cd1)
 
 
 
