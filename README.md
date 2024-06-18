@@ -16,7 +16,7 @@ What is missing
 * Mesh generation
 * Nice rendering for real data
 
-Note: training and validation was done locally on GTX1650TI which is not enough for this task. So, maybe with more compute you will be able to create more samples along the ray and train for much longer. This might help
+Note: training and validation was done locally on GTX1650TI which is not enough for this task. So, maybe with more compute you will be able to create more samples along the ray and train for much longer. This might help to get better results on the real world data
 
 From [multinerf](https://github.com/google-research/multinerf) I took pycolmap, distorions, some render,ray utils and colmap script. <br>
 From [this nerf implemenation](https://github.com/kwea123/nerf_pl) I borrowed modular design
