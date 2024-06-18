@@ -17,8 +17,8 @@ What is missing
 
 Note: training and validation was done locally on GTX1650TI which is not enough for this task. So, maybe with more compute you will be able to create more samples along the ray and train for much longer. This might help
 
-From multinerf(insert link) I took pycolmap, distorions, some render and ray utils and colmap script.
-From
+From [multinerf](https://github.com/google-research/multinerf) I took pycolmap, distorions, some render,ray utils and colmap script.
+From [this nerf implemenation](https://github.com/kwea123/nerf_pl) I borrowed modular design
 
 Sample video generations from Blender dataset:
 (insert videos)
@@ -85,7 +85,7 @@ docker build -t media_to_3d_container .
 ```
 
 ### Run container
-You can newly built container through `Docker Desktop` or using
+You can run newly built container through `Docker Desktop` or using
 ```
 docker container run -e BOT_TOKEN media_to_3d_container
 ```
