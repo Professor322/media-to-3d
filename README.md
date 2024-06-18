@@ -1,5 +1,5 @@
 # Media to 3D
-This is an attempt to create a service that generates 3D representation of an object from a single video or multiple images. In its core it is using Nerf model (link)
+This is an attempt to create a service that generates 3D representation of an object from a single video or multiple images. In its core it is using Nerf model (link) <br>
 Verified that it works well with synthetic data.
 
 What is supported
@@ -17,7 +17,7 @@ What is missing
 
 Note: training and validation was done locally on GTX1650TI which is not enough for this task. So, maybe with more compute you will be able to create more samples along the ray and train for much longer. This might help
 
-From [multinerf](https://github.com/google-research/multinerf) I took pycolmap, distorions, some render,ray utils and colmap script.
+From [multinerf](https://github.com/google-research/multinerf) I took pycolmap, distorions, some render,ray utils and colmap script. <br>
 From [this nerf implemenation](https://github.com/kwea123/nerf_pl) I borrowed modular design
 
 Sample video generations from Blender dataset:
