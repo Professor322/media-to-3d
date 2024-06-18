@@ -152,7 +152,6 @@ class NerfDatasetRealImages(Dataset):
         self.render_poses = render_utils.generate_ellipse_path(
             self.poses, n_frames=duration * fps
         )
-        # self.render_poses = render_utils.create_spherical_poses(duration * fps)
         for render_pose in self.render_poses:
             ray_origins, ray_directions = ray_utils.get_rays(
                 self.image_resolution[0],
