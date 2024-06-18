@@ -29,7 +29,8 @@ Sample video generations from Blender dataset:<br>
 
 
 Sample validation tracking:
-(insert videos)
+![validation_imgs_render_crocs1-ezgif com-video-to-gif-converter](https://github.com/Professor322/media-to-3d/assets/36162000/ecb97767-0916-4680-a5b0-04f11bb41728)
+
 
 ## Setup
 
