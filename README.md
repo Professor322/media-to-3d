@@ -5,6 +5,7 @@ Verified that it works well with synthetic data.
 What is supported
 
 * Synthetic and real datasets (colmap is used for camera positions estimations)
+* Frame extractions from the video
 * Validation tracking
 * Checkpointing
 * Telegram bot
