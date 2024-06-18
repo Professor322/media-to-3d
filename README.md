@@ -20,8 +20,9 @@ Note: training and validation was done locally on GTX1650TI which is not enough 
 From [multinerf](https://github.com/google-research/multinerf) I took pycolmap, distorions, some render,ray utils and colmap script. <br>
 From [this nerf implemenation](https://github.com/kwea123/nerf_pl) I borrowed modular design
 
-Sample video generations from Blender dataset:
-https://github.com/Professor322/media-to-3d/assets/36162000/55bfd374-bc4d-4a23-a3ec-ab0027c56a83
+Sample video generations from Blender dataset:<br>
+![chair_render-ezgif com-video-to-gif-converter](https://github.com/Professor322/media-to-3d/assets/36162000/a5ff4648-b8c0-4012-b685-540f423893f0)
+
 
 
 
