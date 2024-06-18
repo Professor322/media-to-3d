@@ -30,6 +30,7 @@ Sample video generations from Blender dataset:<br>
 
 Sample validation tracking:<br>
 ![validation_imgs_render_crocs1-ezgif com-video-to-gif-converter](https://github.com/Professor322/media-to-3d/assets/36162000/ecb97767-0916-4680-a5b0-04f11bb41728)
+![validation_imgs_render_drumset-ezgif com-video-to-gif-converter](https://github.com/Professor322/media-to-3d/assets/36162000/baff6895-d134-4315-aaf1-f0f974fde455)
 
 
 ## Setup
